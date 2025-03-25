@@ -10,8 +10,7 @@ Currently, only supports [rule.LocalRuleSet] with only 1 [option.DefaultRule] an
   - processName
   - packageName
 
-JSON format exmaple:
-
+JSON format example:
 	{
 		"version":3,
 		"rules":[
