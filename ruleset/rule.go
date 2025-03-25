@@ -263,7 +263,7 @@ func (m *MutableRuleSet) loadFilters(s adapter.RuleSet) {
 	m.filterMu.Unlock()
 }
 
-// ruleWrapper wraps an [adapter.Rule] to allow checing if the rule is enabled before matching.
+// ruleWrapper wraps an [adapter.Rule] to allow checking if the rule is enabled before matching.
 type ruleWrapper struct {
 	// Rule is the underlying rule.
 	adapter.Rule
