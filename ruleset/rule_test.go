@@ -2,8 +2,10 @@ package ruleset
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"testing"
 
 	box "github.com/sagernet/sing-box"
@@ -24,22 +26,25 @@ func TestMutableRuleSet(t *testing.T) {
 	ctx, instance, path := setup(t, rsTag, domain)
 	defer os.RemoveAll(path)
 
-	_, loaded := instance.Router().RuleSet(rsTag)
+	rs, loaded := instance.Router().RuleSet(rsTag)
 	require.True(t, loaded, "ruleset not loaded")
+	rs.StartContext(ctx, nil)
 
 	// start the router rule. this would normally be done by the router itself when it starts
 	rules := instance.Router().Rules()
 	rsRule := rules[0]
 	rsRule.Start()
 
-	inboundCtx := &adapter.InboundContext{
-		IPVersion: 4,
-		Domain:    domain,
+	inboundCtx := func(domain string) *adapter.InboundContext {
+		return &adapter.InboundContext{
+			Domain: domain,
+		}
 	}
 
 	m := newMutableRuleSet(path, rsTag, "source", true)
 	reset := func() {
 		m.filter.Domain = []string{domain}
+		m.saveToFile()
 		m.Enable()
 	}
 
@@ -47,48 +52,56 @@ func TestMutableRuleSet(t *testing.T) {
 
 	matchTests := []struct {
 		name    string
-		alterFn func(*MutableRuleSet) *adapter.InboundContext
+		alterFn func(*MutableRuleSet, chan struct{}) *adapter.InboundContext
 		want    bool
 	}{
 		{
 			name: "disable",
-			alterFn: func(mrs *MutableRuleSet) *adapter.InboundContext {
+			alterFn: func(mrs *MutableRuleSet, _ chan struct{}) *adapter.InboundContext {
 				mrs.Disable()
-				return inboundCtx
+				return inboundCtx(domain)
 			},
 			want: false,
 		},
 		{
 			name: "re-enable",
-			alterFn: func(mrs *MutableRuleSet) *adapter.InboundContext {
+			alterFn: func(mrs *MutableRuleSet, _ chan struct{}) *adapter.InboundContext {
 				mrs.Disable()
 				mrs.Enable()
-				return inboundCtx
+				return inboundCtx(domain)
 			},
 			want: true,
 		},
 		{
 			name: "match added item",
-			alterFn: func(mrs *MutableRuleSet) *adapter.InboundContext {
+			alterFn: func(mrs *MutableRuleSet, reloaded chan struct{}) *adapter.InboundContext {
 				mrs.AddItem(TypeDomain, "google.com")
-				inboundCtx.Domain = "google.com"
-				return inboundCtx
+				<-reloaded
+				return inboundCtx("google.com")
 			},
 			want: true,
 		},
 		{
 			name: "should not match removed item",
-			alterFn: func(mrs *MutableRuleSet) *adapter.InboundContext {
-				mrs.RemoveItem(TypeDomain, inboundCtx.Domain)
-				return inboundCtx
+			alterFn: func(mrs *MutableRuleSet, reloaded chan struct{}) *adapter.InboundContext {
+				mrs.AddItems(TypeDomain, []string{"google.com", "example.com"})
+				<-reloaded
+				mrs.RemoveItem(TypeDomain, domain)
+				<-reloaded
+				return inboundCtx(domain)
 			},
-			want: true,
+			want: false,
 		},
 	}
 	for _, tt := range matchTests {
 		t.Run(tt.name, func(t *testing.T) {
 			reset()
-			testMatch(t, instance, m, tt.alterFn, inboundCtx, tt.want)
+			reloaded := make(chan struct{})
+			cb := m.ruleset.RegisterCallback(func(it adapter.RuleSet) {
+				reloaded <- struct{}{}
+			})
+			testMatch(t, instance, m, tt.alterFn, reloaded, inboundCtx(domain), tt.want)
+			m.ruleset.UnregisterCallback(cb)
 		})
 	}
 }
@@ -96,7 +109,7 @@ func TestMutableRuleSet(t *testing.T) {
 func setup(t *testing.T, rsTag, domain string) (context.Context, *box.Box, string) {
 	path, err := os.MkdirTemp("", "test")
 	require.NoError(t, err)
-	rsFile := path + "/" + rsTag + ".json"
+	rsFile := filepath.Join(path, rsTag+".json")
 	err = os.WriteFile(rsFile, []byte(`{"version":3,"rules":[{"domain":"`+domain+`"}]}`), 0644)
 	require.NoError(t, err, "failed to create rule file")
 
@@ -123,25 +136,34 @@ func testMatch(
 	t *testing.T,
 	instance *box.Box,
 	mrs *MutableRuleSet,
-	alter func(*MutableRuleSet) *adapter.InboundContext,
+	alter func(*MutableRuleSet, chan struct{}) *adapter.InboundContext,
+	reloaded chan struct{},
 	inboundCtx *adapter.InboundContext,
-	stillMatch bool,
+	matchAltered bool,
 ) {
 	router := instance.Router()
 	rules := router.Rules()
 	require.Len(t, rules, 1, "rules not loaded")
-	rsOriginal := rules[0]
-	assert.True(t, rsOriginal.Match(inboundCtx), "original rule match failed")
+	assert.True(t, rules[0].Match(inboundCtx), "original rule match failed")
 
-	alterInboundCtx := alter(mrs)
+	ruleOriginal := rules[0].String()
+	rsOriginal := mrs.ruleset.String()
+
+	alterInboundCtx := alter(mrs, reloaded)
 	router = instance.Router()
 	rules = router.Rules()
 	require.Len(t, rules, 1, "rules not loaded")
-	rsAltered := rules[0]
-	assert.Equalf(t, stillMatch, rsAltered.Match(alterInboundCtx),
-		"altered rule match failed\nruleset: original[%v], altered[%v]\ninboundCtx: original[%v], altered[%v]",
-		rsOriginal.String(), rsAltered.String(), inboundCtx, alterInboundCtx,
-	)
+
+	ruleAltered := rules[0].String()
+	rsAltered := mrs.ruleset.String()
+	fmtErr := func() string {
+		return fmt.Sprintf("rule:\n\toriginal[%v]\n\taltered[%v]", ruleOriginal, ruleAltered) +
+			fmt.Sprintf("\nruleset:\n\toriginal[%v]\n\taltered[%v]", rsOriginal, rsAltered) +
+			fmt.Sprintf("\ninbound domain:\n\toriginal[%v]\n\taltered[%v]",
+				inboundCtx.Domain, alterInboundCtx.Domain,
+			)
+	}
+	assert.Equalf(t, matchAltered, rules[0].Match(alterInboundCtx), "altered rule match failed\n"+fmtErr())
 }
 
 func TestAddRemoveItems(t *testing.T) {
@@ -154,11 +176,13 @@ func TestAddRemoveItems(t *testing.T) {
 	// test AddItem
 	flen := len(m.filter.Domain)
 	assert.NoError(t, m.AddItem(TypeDomain, "example.com"), "AddItem failed")
+	m.loadFilters(nil)
 	require.Len(t, m.filter.Domain, flen+1, "item not added")
 	assert.Contains(t, m.filter.Domain, "example.com", "item not added")
 
 	flen = len(m.filter.Domain)
 	assert.NoError(t, m.AddItem(TypeDomain, "google.com"), "AddItem failed")
+	m.loadFilters(nil)
 	require.Len(t, m.filter.Domain, flen+1, "item not added")
 	assert.Contains(t, m.filter.Domain, "google.com", "item not added")
 
@@ -167,6 +191,7 @@ func TestAddRemoveItems(t *testing.T) {
 
 	// test RemoveItem
 	assert.NoError(t, m.RemoveItem(TypeDomain, "example.com"), "RemoveItem failed")
+	m.loadFilters(nil)
 	assert.NotContains(t, m.filter.Domain, "example.com", "item not removed")
 
 	assert.Error(t, m.RemoveItem("unsupportedType", "example.com"), "RemoveItem should have failed")
@@ -174,7 +199,10 @@ func TestAddRemoveItems(t *testing.T) {
 
 func testOptions(rsTag, rsPath string) option.Options {
 	opts := option.Options{
-		Log: &option.LogOptions{Disabled: true},
+		Log: &option.LogOptions{
+			Disabled: false,
+			Output:   "stdout",
+		},
 		Inbounds: []option.Inbound{
 			{
 				Type: constant.TypeHTTP,
@@ -204,30 +232,10 @@ func testOptions(rsTag, rsPath string) option.Options {
 		},
 		Route: &option.RouteOptions{
 			Rules: []option.Rule{
-				{
-					Type: constant.RuleTypeDefault,
-					DefaultOptions: option.DefaultRule{
-						RawDefaultRule: option.RawDefaultRule{
-							RuleSet: badoption.Listable[string]{rsTag},
-						},
-						RuleAction: option.RuleAction{
-							Action: constant.RuleActionTypeRoute,
-							RouteOptions: option.RouteActionOptions{
-								Outbound: "http-out",
-							},
-						},
-					},
-				},
+				BaseRouteRule(rsTag, "http-out"),
 			},
 			RuleSet: []option.RuleSet{
-				{
-					Type: constant.RuleSetTypeLocal,
-					Tag:  rsTag,
-					LocalOptions: option.LocalRuleSet{
-						Path: rsPath,
-					},
-					Format: constant.RuleSetFormatSource,
-				},
+				LocalRuleSet(rsTag, rsPath, constant.RuleSetFormatSource),
 			},
 		},
 	}
