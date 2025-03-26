@@ -77,7 +77,9 @@ func newMutableRuleSet(dataPath, tag, format string, enable bool) (*MutableRuleS
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("accessing rule file %s: %w", path, err)
 		}
-		m.saveToFile()
+		if err := m.saveToFile(); err != nil {
+			return nil, fmt.Errorf("saving rule file %s: %w", path, err)
+		}
 	}
 	return m, nil
 }
