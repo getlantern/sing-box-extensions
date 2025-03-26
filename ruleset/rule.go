@@ -36,6 +36,7 @@ type MutableRuleSet struct {
 	enabled *atomic.Bool
 
 	router   adapter.Router
+	ruleset  adapter.RuleSet
 	rules    []adapter.Rule
 	filter   option.DefaultHeadlessRule
 	filterMu sync.RWMutex
@@ -93,6 +94,7 @@ func (m *MutableRuleSet) Start(ctx context.Context) error {
 	if _, ok := ruleset.(*rule.LocalRuleSet); !ok {
 		return fmt.Errorf("unsupported ruleset type: %T", ruleset)
 	}
+	m.ruleset = ruleset
 
 	// find all rules associated with the ruleset, wrap them, and then insert ourselves back into
 	// the router. we also keep a reference to the rules to allow for enabling/disabling them.
@@ -223,21 +225,31 @@ func (m *MutableRuleSet) saveToFile() error {
 	m.filterMu.RLock()
 	filters := m.filter
 	m.filterMu.RUnlock()
+	rs := option.PlainRuleSetCompat{
+		Version: 3,
+		Options: option.PlainRuleSet{
+			Rules: []option.HeadlessRule{
+				{
+					Type:           "default",
+					DefaultOptions: filters,
+				},
+			},
+		},
+	}
 	switch m.fileFormat {
 	case constant.RuleSetFormatSource, "":
-		buf, err := json.Marshal(filters)
+		buf, err := json.Marshal(rs)
 		if err != nil {
 			return err
 		}
 		return os.WriteFile(m.ruleFile, buf, 0644)
 	case constant.RuleSetFormatBinary:
 		setFile, _ := os.Open(m.ruleFile)
-		rs := option.PlainRuleSet{
-			Rules: []option.HeadlessRule{
-				{DefaultOptions: filters},
-			},
+		if err := srs.Write(setFile, rs.Options, rs.Version); err != nil {
+			return err
 		}
-		return srs.Write(setFile, rs, 3)
+		setFile.Close()
+		return nil
 	}
 	return fmt.Errorf("unsupported rule file format: %s", m.fileFormat)
 }
@@ -249,17 +261,31 @@ func (m *MutableRuleSet) loadFilters(s adapter.RuleSet) {
 	var ruleSet option.PlainRuleSetCompat
 	switch m.fileFormat {
 	case constant.RuleSetFormatSource, "":
-		content, _ := os.ReadFile(m.ruleFile)
-		ruleSet, _ = json.UnmarshalExtended[option.PlainRuleSetCompat](content)
+		content, err := os.ReadFile(m.ruleFile)
+		if err != nil {
+			fmt.Println("error reading file", err)
+			return
+		}
+		ruleSet, err = json.UnmarshalExtended[option.PlainRuleSetCompat](content)
+		if err != nil {
+			fmt.Println("error unmarshalling", err)
+			return
+		}
 	case constant.RuleSetFormatBinary:
 		setFile, _ := os.Open(m.ruleFile)
 		ruleSet, _ = srs.Read(setFile, false)
+		setFile.Close()
 	default:
 		return
 	}
 
 	m.filterMu.Lock()
-	m.filter = ruleSet.Options.Rules[0].DefaultOptions
+	rules := ruleSet.Options.Rules
+	if len(rules) == 0 {
+		m.filter = option.DefaultHeadlessRule{}
+	} else {
+		m.filter = ruleSet.Options.Rules[0].DefaultOptions
+	}
 	m.filterMu.Unlock()
 }
 
