@@ -261,20 +261,13 @@ func (m *MutableRuleSet) saveToFile() error {
 // loadFilters loads filters from the given [adapter.RuleSet].
 func (m *MutableRuleSet) loadFilters(s adapter.RuleSet) {
 	// we can safely ignore all errors in this function since the wrapped rule.LocalRuleSet would have
-	// already failed before calling this function.
+	// already failed before calling this function. if we really want to do sanity checks, we can
+	// log them.
 	var ruleSet option.PlainRuleSetCompat
 	switch m.fileFormat {
 	case constant.RuleSetFormatSource, "":
-		content, err := os.ReadFile(m.ruleFile)
-		if err != nil {
-			fmt.Println("error reading file", err)
-			return
-		}
-		ruleSet, err = json.UnmarshalExtended[option.PlainRuleSetCompat](content)
-		if err != nil {
-			fmt.Println("error unmarshalling", err)
-			return
-		}
+		content, _ := os.ReadFile(m.ruleFile)
+		ruleSet, _ = json.UnmarshalExtended[option.PlainRuleSetCompat](content)
 	case constant.RuleSetFormatBinary:
 		setFile, _ := os.Open(m.ruleFile)
 		ruleSet, _ = srs.Read(setFile, false)
