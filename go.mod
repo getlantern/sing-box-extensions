@@ -4,6 +4,8 @@ go 1.23.0
 
 replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.6-0.20250319162213-b56a0b17a972
 
+// replace github.com/sagernet/sing-box => ../sing-box-minimal
+
 require (
 	github.com/sagernet/sing v0.6.4
 	github.com/sagernet/sing-box v1.11.5
