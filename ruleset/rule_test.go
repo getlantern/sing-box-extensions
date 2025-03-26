@@ -41,7 +41,7 @@ func TestMutableRuleSet(t *testing.T) {
 		}
 	}
 
-	m := newMutableRuleSet(path, rsTag, "source", true)
+	m, _ := newMutableRuleSet(path, rsTag, "source", true)
 	reset := func() {
 		m.filter.Domain = []string{domain}
 		m.saveToFile()
@@ -171,7 +171,7 @@ func TestAddRemoveItems(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(path)
 
-	m := newMutableRuleSet(path, "test", "source", false)
+	m, _ := newMutableRuleSet(path, "test", "source", false)
 
 	// test AddItem
 	flen := len(m.filter.Domain)

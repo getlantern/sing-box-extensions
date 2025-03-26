@@ -11,6 +11,7 @@ Currently, only supports [rule.LocalRuleSet] with only 1 [option.DefaultRule] an
   - packageName
 
 JSON format example:
+
 	{
 		"version":3,
 		"rules":[
@@ -61,9 +62,10 @@ func (m *Manager) Start(ctx context.Context) error {
 // tag. The returned [MutableRuleSet] will store [adapter.RuleSet] filters in a file named <tag>.json
 // in the provided dataPath. enable specifies whether the ruleset is initially enabled. format should
 // be either [constant.RuleSetFormatSource] (JSON) or [constant.RuleSetFormatBinary] (sing-box SRS).
-func (m *Manager) NewMutableRuleSet(dataPath, tag, format string, enable bool) *MutableRuleSet {
-	m.rulesets[tag] = newMutableRuleSet(dataPath, tag, format, enable)
-	return m.rulesets[tag]
+func (m *Manager) NewMutableRuleSet(dataPath, tag, format string, enable bool) (*MutableRuleSet, error) {
+	var err error
+	m.rulesets[tag], err = newMutableRuleSet(dataPath, tag, format, enable)
+	return m.rulesets[tag], err
 }
 
 // MutableRuleSet returns the [MutableRuleSet] with the provided tag.

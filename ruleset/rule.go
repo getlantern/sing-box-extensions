@@ -49,18 +49,37 @@ type MutableRuleSet struct {
 
 // newMutableRuleSet returns a new [MutableRuleSet] with the given tag, dataPath, and enable state.
 // format should be either [constant.RuleSetFormatSource] or [constant.RuleSetFormatBinary].
-func newMutableRuleSet(dataPath, tag, format string, enable bool) *MutableRuleSet {
+func newMutableRuleSet(dataPath, tag, format string, enable bool) (*MutableRuleSet, error) {
 	// TODO: accept logger? Probably should..
-	path := filepath.Join(dataPath, tag+".json")
+	var path string
+	switch format {
+	case constant.RuleSetFormatSource, "":
+		path = filepath.Join(dataPath, tag+".json")
+	case constant.RuleSetFormatBinary:
+		path = filepath.Join(dataPath, tag+".srs")
+	default:
+		return nil, fmt.Errorf("unsupported rule file format: %s", format)
+	}
+
 	enabled := new(atomic.Bool)
 	enabled.Store(enable)
-	return &MutableRuleSet{
+	m := &MutableRuleSet{
 		tag:        tag,
 		enabled:    enabled,
+		filter:     option.DefaultHeadlessRule{},
 		started:    atomic.Bool{},
 		ruleFile:   path,
 		fileFormat: format,
 	}
+
+	// check if ruleFile exists and create it if it doesn't
+	if _, err := os.Stat(path); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("accessing rule file %s: %w", path, err)
+		}
+		m.saveToFile()
+	}
+	return m, nil
 }
 
 // Enable enables all rules using the managed ruleset
