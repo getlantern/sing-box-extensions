@@ -244,8 +244,12 @@ func (m *MutableRuleSet) saveToFile() error {
 		}
 		return os.WriteFile(m.ruleFile, buf, 0644)
 	case constant.RuleSetFormatBinary:
-		setFile, _ := os.Open(m.ruleFile)
+		setFile, err := os.Open(m.ruleFile)
+		if err != nil {
+			return err
+		}
 		if err := srs.Write(setFile, rs.Options, rs.Version); err != nil {
+			setFile.Close()
 			return err
 		}
 		setFile.Close()
