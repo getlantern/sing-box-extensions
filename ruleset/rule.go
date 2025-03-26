@@ -2,10 +2,10 @@ package ruleset
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -137,34 +137,24 @@ func (m *MutableRuleSet) Start(ctx context.Context) error {
 	return nil
 }
 
-// Filters returns the current filters as a JSON string.
-func (m *MutableRuleSet) Filters() string {
+// Filters returns the current filters
+func (m *MutableRuleSet) Filters() option.DefaultHeadlessRule {
 	m.filterMu.RLock()
 	defer m.filterMu.RUnlock()
-	// we can safely ignore the error here because we know the filter is valid JSON
-	buf, _ := json.Marshal(m.filter)
-	return string(buf)
-}
-
-// AddItems adds multiple items to the filter. It returns an error if the filter type is unsupported
-// or it fails to update the rule file.
-func (m *MutableRuleSet) AddItems(filterType string, items []string) error {
-	var errs []error
-	for _, item := range items {
-		if err := m.modify(filterType, item, add); err != nil {
-			errs = append(errs, err)
-		}
+	return option.DefaultHeadlessRule{
+		Domain:        slices.Clone(m.filter.Domain),
+		DomainSuffix:  slices.Clone(m.filter.DomainSuffix),
+		DomainKeyword: slices.Clone(m.filter.DomainKeyword),
+		DomainRegex:   slices.Clone(m.filter.DomainRegex),
+		ProcessName:   slices.Clone(m.filter.ProcessName),
+		PackageName:   slices.Clone(m.filter.PackageName),
 	}
-	if err := m.saveToFile(); err != nil {
-		return fmt.Errorf("writing rule to %s: %w", m.ruleFile, err)
-	}
-	return errors.Join(errs...)
 }
 
 // AddItem adds a new item to the filter of the given type. It returns an error if the filter type is
 // unsupported or it fails to update the rule file.
 func (m *MutableRuleSet) AddItem(filterType, item string) error {
-	if err := m.modify(filterType, item, add); err != nil {
+	if err := m.modify(filterType, item, merge); err != nil {
 		return err
 	}
 	if err := m.saveToFile(); err != nil {
@@ -172,21 +162,6 @@ func (m *MutableRuleSet) AddItem(filterType, item string) error {
 		return fmt.Errorf("writing rule to %s: %w", m.ruleFile, err)
 	}
 	return nil
-}
-
-// RemoveItems removes multiple items from the filter. It retruns an error if the filter type is
-// unsupported or it fails to update the rule file.
-func (m *MutableRuleSet) RemoveItems(filterType string, items []string) error {
-	var errs []error
-	for _, item := range items {
-		if err := m.modify(filterType, item, remove); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if err := m.saveToFile(); err != nil {
-		return fmt.Errorf("writing rule to %s: %w", m.ruleFile, err)
-	}
-	return errors.Join(errs...)
 }
 
 // RemoveItem removes an item from the filter of the given type. It retruns an error if the filter
@@ -201,42 +176,106 @@ func (m *MutableRuleSet) RemoveItem(filterType, item string) error {
 	return nil
 }
 
-type actionFn func(slice []string, item string) []string
+// AddItems merges the given [option.DefaultHeadlessRule] with the current filters, ignoring unsupported
+// fields. It returns an error if it fails to update the rule file.
+func (m *MutableRuleSet) AddItems(items option.DefaultHeadlessRule) error {
+	m.patch(items, merge)
+	return m.saveToFile()
+}
 
-func (m *MutableRuleSet) modify(filterType, item string, fn actionFn) error {
+// RemoveItems removes multiple items from the filter. It retruns an error if the filter type is
+// unsupported or it fails to update the rule file.
+func (m *MutableRuleSet) RemoveItems(items option.DefaultHeadlessRule) error {
+	m.patch(items, remove)
+	return m.saveToFile()
+}
+
+type actionFn func(slice []string, items []string) []string
+
+// modify uses fn to modify the filter of the given type with the given item.
+func (m *MutableRuleSet) modify(filterType string, item string, fn actionFn) error {
 	m.filterMu.Lock()
 	defer m.filterMu.Unlock()
 
+	items := []string{item}
 	switch filterType {
 	case TypeDomain:
-		m.filter.Domain = fn(m.filter.Domain, item)
+		m.filter.Domain = fn(m.filter.Domain, items)
 	case TypeDomainSuffix:
-		m.filter.DomainSuffix = fn(m.filter.DomainSuffix, item)
+		m.filter.DomainSuffix = fn(m.filter.DomainSuffix, items)
 	case TypeDomainKeyword:
-		m.filter.DomainKeyword = fn(m.filter.DomainKeyword, item)
+		m.filter.DomainKeyword = fn(m.filter.DomainKeyword, items)
 	case TypeDomainRegex:
-		m.filter.DomainRegex = fn(m.filter.DomainRegex, item)
+		m.filter.DomainRegex = fn(m.filter.DomainRegex, items)
 	case TypeProcessName:
-		m.filter.ProcessName = fn(m.filter.ProcessName, item)
+		m.filter.ProcessName = fn(m.filter.ProcessName, items)
 	case TypePackageName:
-		m.filter.PackageName = fn(m.filter.PackageName, item)
+		m.filter.PackageName = fn(m.filter.PackageName, items)
 	default:
 		return fmt.Errorf("unsupported filter type: %s", filterType)
 	}
 	return nil
 }
 
-func add(slice []string, item string) []string {
-	return append(slice, item)
+// patch uses fn to modify the filter with the given diff.
+func (m *MutableRuleSet) patch(diff option.DefaultHeadlessRule, fn actionFn) {
+	m.filterMu.Lock()
+	defer m.filterMu.Unlock()
+	if len(diff.Domain) > 0 {
+		m.filter.Domain = fn(m.filter.Domain, diff.Domain)
+	}
+	if len(diff.DomainSuffix) > 0 {
+		m.filter.DomainSuffix = fn(m.filter.DomainSuffix, diff.DomainSuffix)
+	}
+	if len(diff.DomainKeyword) > 0 {
+		m.filter.DomainKeyword = fn(m.filter.DomainKeyword, diff.DomainKeyword)
+	}
+	if len(diff.DomainRegex) > 0 {
+		m.filter.DomainRegex = fn(m.filter.DomainRegex, diff.DomainRegex)
+	}
+	if len(diff.ProcessName) > 0 {
+		m.filter.ProcessName = fn(m.filter.ProcessName, diff.ProcessName)
+	}
+	if len(diff.PackageName) > 0 {
+		m.filter.PackageName = fn(m.filter.PackageName, diff.PackageName)
+	}
 }
 
-func remove(slice []string, item string) []string {
-	for i, v := range slice {
-		if v == item {
-			return append(slice[:i], slice[i+1:]...)
+func merge(slice []string, items []string) []string {
+	return append(slice, items...)
+}
+
+func remove(slice []string, items []string) []string {
+	if len(slice) == 0 || len(items) == 0 {
+		return slice
+	}
+
+	if len(items) == 1 {
+		idx := slices.Index(slice, items[0])
+		if idx == -1 {
+			return slice
+		}
+		j := len(slice) - 1
+		slice[idx] = slice[j]
+		return slice[:j]
+	}
+
+	itemSet := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		itemSet[item] = struct{}{}
+	}
+
+	i, j := 0, len(slice)-1
+	for i <= j {
+		v := slice[i]
+		if _, found := itemSet[v]; found {
+			slice[i] = slice[j]
+			j--
+		} else {
+			i++
 		}
 	}
-	return slice
+	return slice[:i]
 }
 
 // saveToFile saves the current filter to the rule file.

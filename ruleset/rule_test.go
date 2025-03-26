@@ -84,7 +84,7 @@ func TestMutableRuleSet(t *testing.T) {
 		{
 			name: "should not match removed item",
 			alterFn: func(mrs *MutableRuleSet, reloaded chan struct{}) *adapter.InboundContext {
-				mrs.AddItems(TypeDomain, []string{"google.com", "example.com"})
+				mrs.AddItem(TypeDomain, "google.com")
 				<-reloaded
 				mrs.RemoveItem(TypeDomain, domain)
 				<-reloaded
@@ -172,29 +172,75 @@ func TestAddRemoveItems(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	m, _ := newMutableRuleSet(path, "test", "source", false)
+	reset := func() {
+		m.filter = option.DefaultHeadlessRule{
+			Domain:      []string{"test.com", "example.com"},
+			ProcessName: []string{"chrome"},
+		}
+	}
+	tests := []struct {
+		name    string
+		alterFn func(*MutableRuleSet)
+		want    option.DefaultHeadlessRule
+	}{
+		{
+			name: "add single item",
+			alterFn: func(m *MutableRuleSet) {
+				m.AddItem(TypeDomain, "google.com")
+			},
+			want: option.DefaultHeadlessRule{
+				Domain:      []string{"test.com", "example.com", "google.com"},
+				ProcessName: []string{"chrome"},
+			},
+		},
+		{
+			name: "remove single item",
+			alterFn: func(m *MutableRuleSet) {
+				m.RemoveItem(TypeDomain, "example.com")
+			},
+			want: option.DefaultHeadlessRule{
+				Domain:      []string{"test.com"},
+				ProcessName: []string{"chrome"},
+			},
+		},
+		{
+			name: "add multiple items",
+			alterFn: func(m *MutableRuleSet) {
+				m.AddItems(option.DefaultHeadlessRule{
+					Domain:          []string{"google.com", "github.com"},
+					DomainSuffix:    []string{".cn"},
+					SourcePortRange: []string{"1000-2000"}, // not supported by the filter so should be ignored
+				})
+			},
+			want: option.DefaultHeadlessRule{
+				Domain:       []string{"test.com", "example.com", "google.com", "github.com"},
+				DomainSuffix: []string{".cn"},
+				ProcessName:  []string{"chrome"},
+			},
+		},
+		{
+			name: "remove multiple items",
+			alterFn: func(m *MutableRuleSet) {
+				m.RemoveItems(option.DefaultHeadlessRule{
+					Domain:          []string{"google.com", "example.com"},
+					ProcessName:     []string{"chrome"},
+					SourcePortRange: []string{"1000-2000"}, // not supported by the filter so should be ignored
+				})
+			},
+			want: option.DefaultHeadlessRule{
+				Domain:      []string{"test.com"},
+				ProcessName: []string{},
+			},
+		},
+	}
 
-	// test AddItem
-	flen := len(m.filter.Domain)
-	assert.NoError(t, m.AddItem(TypeDomain, "example.com"), "AddItem failed")
-	m.loadFilters(nil)
-	require.Len(t, m.filter.Domain, flen+1, "item not added")
-	assert.Contains(t, m.filter.Domain, "example.com", "item not added")
-
-	flen = len(m.filter.Domain)
-	assert.NoError(t, m.AddItem(TypeDomain, "google.com"), "AddItem failed")
-	m.loadFilters(nil)
-	require.Len(t, m.filter.Domain, flen+1, "item not added")
-	assert.Contains(t, m.filter.Domain, "google.com", "item not added")
-
-	t.Log(m.Filters())
-	assert.Error(t, m.AddItem("unsupportedType", "example.com"), "AddItem should have failed")
-
-	// test RemoveItem
-	assert.NoError(t, m.RemoveItem(TypeDomain, "example.com"), "RemoveItem failed")
-	m.loadFilters(nil)
-	assert.NotContains(t, m.filter.Domain, "example.com", "item not removed")
-
-	assert.Error(t, m.RemoveItem("unsupportedType", "example.com"), "RemoveItem should have failed")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reset()
+			tt.alterFn(m)
+			assert.Equal(t, tt.want, m.filter)
+		})
+	}
 }
 
 func testOptions(rsTag, rsPath string) option.Options {
