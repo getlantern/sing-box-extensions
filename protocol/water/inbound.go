@@ -43,13 +43,13 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 
 	d, err := waterDownloader.NewWASMDownloader(options.WASMAvailableAt, &http.Client{Timeout: 1 * time.Minute})
 	if err != nil {
-		return nil, E.New("failed to create WASM downloader")
+		return nil, E.New("failed to create WASM downloader", err)
 	}
 
 	wasmBuffer := new(bytes.Buffer)
 	// thil will lock the inbound until it finishes to download
 	if err = d.DownloadWASM(ctx, wasmBuffer); err != nil {
-		return nil, E.New("unable to download water wasm: %w", err)
+		return nil, E.New("unable to download water wasm", err)
 	}
 
 	cfg := &water.Config{
@@ -59,7 +59,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	}
 	core, err := water.NewCoreWithContext(ctx, cfg)
 	if err != nil {
-		return nil, E.New("failed to create water listener: %w", err)
+		return nil, E.New("failed to create water listener", err)
 	}
 	inbound := &Inbound{
 		Adapter: inbound.NewAdapter(constant.TypeWATER, tag),
@@ -80,9 +80,15 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 }
 
 func (i *Inbound) NewConnectionEx(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
-	src, err := transport.UpgradeCore(i.core).AcceptFor(conn)
+	transportModule := transport.UpgradeCore(i.core)
+	src, err := transportModule.AcceptFor(conn)
 	if err != nil {
 		i.logger.ErrorContext(ctx, E.Cause(err, "accepting connection from ", metadata.Source))
+		return
+	}
+
+	if err := transportModule.StartWorker(); err != nil {
+		i.logger.ErrorContext(ctx, E.Cause(err, "failed to start WATER worker", metadata.Source))
 		return
 	}
 
