@@ -7,3 +7,12 @@ type WATERInboundOptions struct {
 	Transport       string   `json:"transport"`
 	WASMAvailableAt []string `json:"wasm_available_at"`
 }
+
+type WATEROutboundOptions struct {
+	option.ServerOptions
+	option.DialerOptions
+	Transport       string   `json:"transport"`
+	WASMAvailableAt []string `json:"wasm_available_at"`
+	DownloadTimeout string   `json:"download_timeout"`
+	Dir             string   `json:"water_dir"`
+}
