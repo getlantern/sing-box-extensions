@@ -40,7 +40,8 @@ type MutableRuleSet struct {
 	rules    []adapter.Rule
 	filter   option.DefaultHeadlessRule
 	filterMu sync.RWMutex
-	started  atomic.Bool
+	started  bool
+	startMu  sync.Mutex
 
 	ruleFile string
 	// fileFormat is the format of the rule file.
@@ -67,7 +68,6 @@ func newMutableRuleSet(dataPath, tag, format string, enable bool) (*MutableRuleS
 		tag:        tag,
 		enabled:    enabled,
 		filter:     option.DefaultHeadlessRule{},
-		started:    atomic.Bool{},
 		ruleFile:   path,
 		fileFormat: format,
 	}
@@ -103,11 +103,17 @@ func (m *MutableRuleSet) IsEnabled() bool {
 // the [adapter.Router] must be created and added to ctx before calling Start. This is typically done
 // when creating a [boxService.BoxService].
 func (m *MutableRuleSet) Start(ctx context.Context) error {
-	if !m.started.CompareAndSwap(false, true) {
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+
+	if m.started {
 		return nil
 	}
 
 	router := service.FromContext[adapter.Router](ctx)
+	if router == nil {
+		return fmt.Errorf("router not found in context")
+	}
 	ruleset, loaded := router.RuleSet(m.tag)
 	if !loaded {
 		return fmt.Errorf("%v ruleSet not found", m.tag)
@@ -136,6 +142,7 @@ func (m *MutableRuleSet) Start(ctx context.Context) error {
 	// changes so we're always in sync.
 	ruleset.RegisterCallback(m.loadFilters)
 	m.loadFilters(ruleset)
+	m.started = true
 	return nil
 }
 
