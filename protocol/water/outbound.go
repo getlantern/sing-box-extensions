@@ -3,6 +3,7 @@ package water
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -10,6 +11,7 @@ import (
 	waterDownloader "github.com/getlantern/lantern-water/downloader"
 	waterVC "github.com/getlantern/lantern-water/version_control"
 	"github.com/getlantern/sing-box-extensions/constant"
+	L "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
 	"github.com/refraction-networking/water"
 	transport "github.com/refraction-networking/water/transport/v1"
@@ -41,8 +43,8 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, err
 	}
 
-	// TODO: create slog.Logger that uses the sing-box logger
-	vc := waterVC.NewWaterVersionControl(options.Dir, nil)
+	slogLogger := slog.New(L.NewLogHandler(logger))
+	vc := waterVC.NewWaterVersionControl(options.Dir, slogLogger)
 	d, err := waterDownloader.NewWASMDownloader(options.WASMAvailableAt, &http.Client{Timeout: timeout})
 	if err != nil {
 		return nil, E.New("failed to create WASM downloader", err)
@@ -61,8 +63,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 
 	cfg := &water.Config{
 		TransportModuleBin: b,
-		// TODO: create slog.Logger that uses the sing-box logger
-		// OverrideLogger: ,
+		OverrideLogger:     slogLogger,
 	}
 
 	core, err := water.NewCoreWithContext(ctx, cfg)

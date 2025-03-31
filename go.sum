@@ -144,6 +144,10 @@ github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55 h1:XYzSdCbkzOC0F
 github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55/go.mod h1:6mmzY2kW1TOOrVy+r41Za2MxXM+hhqTtY3oBKd2AgFA=
 github.com/getlantern/lantern-water v0.0.0-20250123195039-121e25011cd3 h1:xADWyW/ZMYDHHiCjkCheMkAxwpgbV2IBcrAHo4nPhCo=
 github.com/getlantern/lantern-water v0.0.0-20250123195039-121e25011cd3/go.mod h1:ZpSOrcdJkmb8MvaQn6mxaidxshlyi+RJLUerhW4L5Lo=
+github.com/getlantern/lantern-water v0.0.0-20250331152707-e80b09399cf4 h1:f3nSqWYI0g0FvHzQYoDb1cHWCapbkQilVdn/RfZXGm8=
+github.com/getlantern/lantern-water v0.0.0-20250331152707-e80b09399cf4/go.mod h1:ZpSOrcdJkmb8MvaQn6mxaidxshlyi+RJLUerhW4L5Lo=
+github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8 h1:w5Ff0OeAOEWkAs8BxCfHilE0MsXdCrI1101rSQT8Y8w=
+github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8/go.mod h1:ZpSOrcdJkmb8MvaQn6mxaidxshlyi+RJLUerhW4L5Lo=
 github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f h1:wrYrQttPS8FHIRSlsrcuKazukx/xqO/PpLZzZXsF+EA=
 github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f/go.mod h1:D5ao98qkA6pxftxoqzibIBBrLSUli+kYnJqrgBf9cIA=
 github.com/getlantern/sing-box-minimal v1.11.6-0.20250319162213-b56a0b17a972 h1:n1d3qX4G8IqDiOUnZMy404ZJP0cJqYPBYAtgBnZiDvU=

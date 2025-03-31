@@ -7,7 +7,7 @@ replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v
 // replace github.com/sagernet/sing-box => ../sing-box-minimal
 
 require (
-	github.com/getlantern/lantern-water v0.0.0-20250123195039-121e25011cd3
+	github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8
 	github.com/refraction-networking/water v0.7.0-alpha
 	github.com/sagernet/sing v0.6.4
 	github.com/sagernet/sing-box v1.11.5

@@ -3,12 +3,14 @@ package water
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
 
 	waterDownloader "github.com/getlantern/lantern-water/downloader"
 	"github.com/getlantern/sing-box-extensions/constant"
+	L "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
 	"github.com/refraction-networking/water"
 	transport "github.com/refraction-networking/water/transport/v1"
@@ -53,8 +55,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	}
 
 	cfg := &water.Config{
-		// TODO: create slog.Logger that uses the sing-box logger
-		// OverrideLogger: ,
+		OverrideLogger:     slog.New(L.NewLogHandler(logger)),
 		TransportModuleBin: wasmBuffer.Bytes(),
 	}
 	core, err := water.NewCoreWithContext(ctx, cfg)
