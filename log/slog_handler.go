@@ -80,8 +80,12 @@ func (h *slogHandler) Handle(ctx context.Context, record slog.Record) error {
 	message := messageBuilder.String()
 
 	switch record.Level {
-	case slog.LevelDebug, slog.LevelInfo, slog.LevelWarn:
+	case slog.LevelDebug:
 		h.logger.DebugContext(ctx, message)
+	case slog.LevelInfo:
+		h.logger.InfoContext(ctx, message)
+	case slog.LevelWarn:
+		h.logger.WarnContext(ctx, message)
 	case slog.LevelError:
 		h.logger.ErrorContext(ctx, message)
 	default:
