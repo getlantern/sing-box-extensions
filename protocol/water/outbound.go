@@ -80,6 +80,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		logger:         logger,
 		outboundDialer: outboundDialer,
 		core:           core,
+		serverAddr:     options.ServerOptions.Build(),
 	}
 
 	return outbound, nil
@@ -90,12 +91,19 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	conn, err := o.outboundDialer.DialContext(ctx, network, destination)
+	o.logger.InfoContext(ctx, "dialing with WATER connection")
+
+	conn, err := o.outboundDialer.DialContext(ctx, network, o.serverAddr)
 	if err != nil {
 		return nil, err
 	}
 
 	transportModule := transport.UpgradeCore(o.core)
+
+	//transportModule.LinkNetworkInterface(, nil)
+	if err := transportModule.Initialize(); err != nil {
+		return nil, err
+	}
 	dstConn, err := transportModule.DialFrom(conn)
 	if err != nil {
 		o.logger.ErrorContext(ctx, E.Cause(err, "accepting connection from ", metadata.Source))

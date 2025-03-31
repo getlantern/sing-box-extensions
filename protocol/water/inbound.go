@@ -70,6 +70,8 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		core:    core,
 	}
 
+	logger.InfoContext(ctx, "listening WATER at port", options.ListenOptions.ListenPort)
+
 	inbound.listener = listener.New(listener.Options{
 		Context:           ctx,
 		Logger:            logger,
@@ -81,7 +83,17 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 }
 
 func (i *Inbound) NewConnectionEx(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
+	i.logger.InfoContext(ctx, "accepting WATER connection")
 	transportModule := transport.UpgradeCore(i.core)
+	if err := transportModule.LinkNetworkInterface(nil, i.core.Config().NetworkListenerOrPanic()); err != nil {
+		i.logger.ErrorContext(ctx, E.Cause(err, "failed to link network interface", err))
+		return
+	}
+
+	if err := transportModule.Initialize(); err != nil {
+		i.logger.ErrorContext(ctx, E.Cause(err, "failed to initialize transport module", err))
+		return
+	}
 	src, err := transportModule.AcceptFor(conn)
 	if err != nil {
 		i.logger.ErrorContext(ctx, E.Cause(err, "accepting connection from ", metadata.Source))
