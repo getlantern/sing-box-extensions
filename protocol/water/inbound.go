@@ -54,7 +54,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	}
 
 	wasmBuffer := new(bytes.Buffer)
-	// thil will lock the inbound until it finishes to download
+	// this will lock the inbound until it finishes to download
 	if err = d.DownloadWASM(ctx, wasmBuffer); err != nil {
 		return nil, E.New("unable to download water wasm", err)
 	}
