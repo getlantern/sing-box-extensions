@@ -64,8 +64,6 @@ func (h *slogHandler) Handle(ctx context.Context, record slog.Record) error {
 	}
 
 	messageBuilder := new(strings.Builder)
-	messageBuilder.WriteString(record.Level.String())
-	messageBuilder.WriteString(": ")
 	messageBuilder.WriteString(record.Message)
 	messageBuilder.WriteString(" ")
 	record.Attrs(func(attr slog.Attr) bool {
