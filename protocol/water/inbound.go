@@ -3,6 +3,7 @@ package water
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,13 +14,14 @@ import (
 	L "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
 	"github.com/refraction-networking/water"
-	transport "github.com/refraction-networking/water/transport/v1"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
 	"github.com/sagernet/sing-box/common/listener"
 	"github.com/sagernet/sing-box/log"
 	E "github.com/sagernet/sing/common/exceptions"
-	"github.com/sagernet/sing/common/network"
+	M "github.com/sagernet/sing/common/metadata"
+
+	_ "github.com/refraction-networking/water/transport/v1"
 )
 
 func RegisterInbound(registry *inbound.Registry) {
@@ -28,11 +30,12 @@ func RegisterInbound(registry *inbound.Registry) {
 
 type Inbound struct {
 	inbound.Adapter
-	ctx      context.Context
-	logger   log.ContextLogger
-	core     water.Core
-	listener *listener.Listener
-	router   adapter.Router
+	ctx           context.Context
+	logger        log.ContextLogger
+	core          water.Core
+	waterListener water.Listener
+	listener      *listener.Listener
+	router        adapter.Router
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATERInboundOptions) (adapter.Inbound, error) {
@@ -54,65 +57,31 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		return nil, E.New("unable to download water wasm", err)
 	}
 
-	cfg := &water.Config{
-		OverrideLogger:     slog.New(L.NewLogHandler(logger)),
-		TransportModuleBin: wasmBuffer.Bytes(),
-	}
-	core, err := water.NewCoreWithContext(ctx, cfg)
-	if err != nil {
-		return nil, E.New("failed to create water listener", err)
-	}
 	inbound := &Inbound{
 		Adapter: inbound.NewAdapter(constant.TypeWATER, tag),
 		ctx:     ctx,
 		logger:  logger,
 		router:  router,
-		core:    core,
 	}
-
-	logger.InfoContext(ctx, "listening WATER at port", options.ListenOptions.ListenPort)
 
 	inbound.listener = listener.New(listener.Options{
-		Context:           ctx,
-		Logger:            logger,
-		Listen:            options.ListenOptions,
-		ConnectionHandler: inbound,
+		Context: ctx,
+		Logger:  logger,
+		Listen:  options.ListenOptions,
 	})
+	tcpListener, err := inbound.listener.ListenTCP()
+	cfg := &water.Config{
+		OverrideLogger:     slog.New(L.NewLogHandler(logger)),
+		TransportModuleBin: wasmBuffer.Bytes(),
+		NetworkListener:    tcpListener,
+	}
+
+	inbound.waterListener, err = water.NewListenerWithContext(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	return inbound, nil
-}
-
-func (i *Inbound) NewConnectionEx(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
-	i.logger.InfoContext(ctx, "accepting WATER connection")
-	transportModule := transport.UpgradeCore(i.core)
-	if err := transportModule.LinkNetworkInterface(nil, i.core.Config().NetworkListenerOrPanic()); err != nil {
-		i.logger.ErrorContext(ctx, E.Cause(err, "failed to link network interface", err))
-		return
-	}
-
-	if err := transportModule.Initialize(); err != nil {
-		i.logger.ErrorContext(ctx, E.Cause(err, "failed to initialize transport module", err))
-		return
-	}
-	src, err := transportModule.AcceptFor(conn)
-	if err != nil {
-		i.logger.ErrorContext(ctx, E.Cause(err, "accepting connection from ", metadata.Source))
-		return
-	}
-
-	if err := transportModule.StartWorker(); err != nil {
-		i.logger.ErrorContext(ctx, E.Cause(err, "failed to start WATER worker", metadata.Source))
-		return
-	}
-
-	err = i.newConnection(ctx, src, metadata)
-	if err != nil {
-		if E.IsClosedOrCanceled(err) {
-			i.logger.DebugContext(ctx, "connection closed: ", err)
-		} else {
-			i.logger.ErrorContext(ctx, E.Cause(err, "process connection from ", metadata.Source))
-		}
-	}
 }
 
 func (i *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext) error {
@@ -126,7 +95,24 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 	if stage != adapter.StartStateStart {
 		return nil
 	}
-	return i.listener.Start()
+
+	go func() {
+		for {
+			conn, err := i.waterListener.AcceptWATER()
+			if err != nil {
+				i.logger.Error(err)
+				return
+			}
+
+			var metadata adapter.InboundContext
+			metadata.Source = M.SocksaddrFromNet(conn.RemoteAddr()).Unwrap()
+			metadata.OriginDestination = M.SocksaddrFromNet(conn.LocalAddr()).Unwrap()
+			ctx := log.ContextWithNewID(i.ctx)
+			fmt.Printf("accepted WATER connection, metadata: %+v", metadata)
+			go i.newConnection(ctx, conn, metadata)
+		}
+	}()
+	return nil
 }
 
 func (i *Inbound) Close() error {
