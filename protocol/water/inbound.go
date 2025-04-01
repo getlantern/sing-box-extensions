@@ -17,7 +17,9 @@ import (
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
 	"github.com/sagernet/sing-box/common/listener"
+	"github.com/sagernet/sing-box/common/mux"
 	"github.com/sagernet/sing-box/log"
+	"github.com/sagernet/sing/common"
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/network"
@@ -36,7 +38,7 @@ type Inbound struct {
 	core          water.Core
 	waterListener water.Listener
 	listener      *listener.Listener
-	router        adapter.Router
+	router        adapter.ConnectionRouterEx
 	service       *waterTransport.Service
 }
 
@@ -69,6 +71,11 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			Logger:  logger,
 			Listen:  options.ListenOptions,
 		}),
+	}
+
+	inbound.router, err = mux.NewRouterWithOptions(router, logger, common.PtrValueOrDefault(options.Multiplex))
+	if err != nil {
+		return nil, err
 	}
 
 	inbound.service = waterTransport.NewService(logger, adapter.NewUpstreamHandlerEx(adapter.InboundContext{}, inbound.newConnection, inbound.newPacketConnection))

@@ -21,11 +21,14 @@ import (
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/outbound"
 	"github.com/sagernet/sing-box/common/dialer"
+	"github.com/sagernet/sing-box/common/mux"
 	"github.com/sagernet/sing-box/log"
+	"github.com/sagernet/sing/common"
+	"github.com/sagernet/sing/common/bufio"
 	E "github.com/sagernet/sing/common/exceptions"
 	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
-	"github.com/sagernet/sing/common/network"
+	N "github.com/sagernet/sing/common/network"
 )
 
 func RegisterOutbound(registry *outbound.Registry) {
@@ -34,9 +37,10 @@ func RegisterOutbound(registry *outbound.Registry) {
 
 type Outbound struct {
 	outbound.Adapter
-	logger      logger.ContextLogger
-	waterDialer water.Dialer
-	serverAddr  M.Socksaddr
+	logger          logger.ContextLogger
+	waterDialer     water.Dialer
+	serverAddr      M.Socksaddr
+	multiplexDialer *mux.Client
 }
 
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATEROutboundOptions) (adapter.Outbound, error) {
@@ -95,6 +99,11 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		serverAddr:  serverAddr,
 	}
 
+	outbound.multiplexDialer, err = mux.NewClientWithOptions((*wDialer)(outbound), logger, common.PtrValueOrDefault(options.Multiplex))
+	if err != nil {
+		return nil, err
+	}
+
 	return outbound, nil
 }
 
@@ -103,17 +112,19 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	addr := fmt.Sprintf("%s:%d", o.serverAddr.TCPAddr().IP.String(), o.serverAddr.Port)
-	conn, err := o.waterDialer.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, err
+	if o.multiplexDialer != nil {
+		return o.multiplexDialer.DialContext(ctx, network, destination)
 	}
 
-	return waterTransport.NewWATERConnection(conn, destination), nil
+	return (*wDialer)(o).DialContext(ctx, network, destination)
 }
 
 func (o *Outbound) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
-	return nil, E.New("not implemented")
+	o.logger.ErrorContext(ctx, "received listen packet but UDP not supported")
+	if o.multiplexDialer != nil {
+		return o.multiplexDialer.ListenPacket(ctx, destination)
+	}
+	return (*wDialer)(o).ListenPacket(ctx, destination)
 }
 
 func (o *Outbound) Close() error {
@@ -121,5 +132,44 @@ func (o *Outbound) Close() error {
 }
 
 func (o *Outbound) Network() []string {
-	return []string{network.NetworkTCP}
+	return []string{N.NetworkTCP}
+}
+
+type wDialer Outbound
+
+func (d *wDialer) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
+	ctx, metadata := adapter.ExtendContext(ctx)
+	metadata.Outbound = d.Tag()
+	metadata.Destination = destination
+	switch N.NetworkName(network) {
+	case N.NetworkTCP:
+		addr := fmt.Sprintf("%s:%d", d.serverAddr.TCPAddr().IP.String(), d.serverAddr.Port)
+		waterConn, err := d.waterDialer.DialContext(ctx, N.NetworkTCP, addr)
+		if err != nil {
+			return nil, err
+		}
+		return waterTransport.NewWATERConnection(waterConn, destination), nil
+	case N.NetworkUDP:
+		d.logger.ErrorContext(ctx, "received listen packet but UDP not supported")
+		addr := fmt.Sprintf("%s:%d", d.serverAddr.TCPAddr().IP.String(), d.serverAddr.Port)
+		waterConn, err := d.waterDialer.DialContext(ctx, N.NetworkTCP, addr)
+		if err != nil {
+			return nil, err
+		}
+		return bufio.NewBindPacketConn(waterTransport.NewWATERPacketConn(waterConn), destination), nil
+	default:
+		return nil, E.Extend(N.ErrUnknownNetwork, network)
+	}
+}
+
+func (d *wDialer) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
+	ctx, metadata := adapter.ExtendContext(ctx)
+	metadata.Outbound = d.Tag()
+	metadata.Destination = destination
+	addr := fmt.Sprintf("%s:%d", d.serverAddr.TCPAddr().IP.String(), d.serverAddr.Port)
+	waterConn, err := d.waterDialer.DialContext(ctx, N.NetworkTCP, addr)
+	if err != nil {
+		return nil, err
+	}
+	return waterTransport.NewWATERPacketConn(waterConn), nil
 }
