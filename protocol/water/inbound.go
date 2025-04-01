@@ -13,6 +13,7 @@ import (
 	"github.com/getlantern/sing-box-extensions/constant"
 	L "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
+	waterTransport "github.com/getlantern/sing-box-extensions/transport/water"
 	"github.com/refraction-networking/water"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
@@ -20,6 +21,7 @@ import (
 	"github.com/sagernet/sing-box/log"
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
+	"github.com/sagernet/sing/common/network"
 
 	_ "github.com/refraction-networking/water/transport/v1"
 )
@@ -36,6 +38,7 @@ type Inbound struct {
 	waterListener water.Listener
 	listener      *listener.Listener
 	router        adapter.Router
+	service       *waterTransport.Service
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATERInboundOptions) (adapter.Inbound, error) {
@@ -62,14 +65,19 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		ctx:     ctx,
 		logger:  logger,
 		router:  router,
+		listener: listener.New(listener.Options{
+			Context: ctx,
+			Logger:  logger,
+			Listen:  options.ListenOptions,
+		}),
 	}
 
-	inbound.listener = listener.New(listener.Options{
-		Context: ctx,
-		Logger:  logger,
-		Listen:  options.ListenOptions,
-	})
+	inbound.service = waterTransport.NewService(logger, adapter.NewUpstreamHandlerEx(adapter.InboundContext{}, inbound.newConnection, inbound.newPacketConnection))
 	tcpListener, err := inbound.listener.ListenTCP()
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &water.Config{
 		OverrideLogger:     slog.New(L.NewLogHandler(logger)),
 		TransportModuleBin: wasmBuffer.Bytes(),
@@ -84,11 +92,15 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	return inbound, nil
 }
 
-func (i *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext) error {
+func (i *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
 	i.logger.InfoContext(ctx, "inbound connection to ", metadata.Destination)
 	metadata.Inbound = i.Tag()
 	metadata.InboundType = i.Type()
-	return i.router.RouteConnection(ctx, conn, metadata)
+	i.router.RouteConnectionEx(ctx, conn, metadata, onClose)
+}
+
+func (i *Inbound) newPacketConnection(ctx context.Context, conn network.PacketConn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
+	i.logger.ErrorContext(ctx, "packet connection not implemented")
 }
 
 func (i *Inbound) Start(stage adapter.StartStage) error {
@@ -109,7 +121,10 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 			metadata.OriginDestination = M.SocksaddrFromNet(conn.LocalAddr()).Unwrap()
 			ctx := log.ContextWithNewID(i.ctx)
 			fmt.Printf("accepted WATER connection, metadata: %+v", metadata)
-			go i.newConnection(ctx, conn, metadata)
+
+			go i.service.NewConnection(ctx, conn, metadata.Source, func(it error) {
+				i.logger.ErrorContext(ctx, it)
+			})
 		}
 	}()
 	return nil

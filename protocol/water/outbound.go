@@ -15,6 +15,7 @@ import (
 	"github.com/getlantern/sing-box-extensions/constant"
 	L "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
+	waterTransport "github.com/getlantern/sing-box-extensions/transport/water"
 	"github.com/refraction-networking/water"
 	_ "github.com/refraction-networking/water/transport/v1"
 	"github.com/sagernet/sing-box/adapter"
@@ -33,10 +34,9 @@ func RegisterOutbound(registry *outbound.Registry) {
 
 type Outbound struct {
 	outbound.Adapter
-	logger         logger.ContextLogger
-	serverAddr     M.Socksaddr
-	outboundDialer network.Dialer
-	waterDialer    water.Dialer
+	logger      logger.ContextLogger
+	waterDialer water.Dialer
+	serverAddr  M.Socksaddr
 }
 
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATEROutboundOptions) (adapter.Outbound, error) {
@@ -70,36 +70,29 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, err
 	}
 
-	outbound := &Outbound{
-		logger:         logger,
-		outboundDialer: outboundDialer,
-		serverAddr:     options.ServerOptions.Build(),
-	}
+	serverAddr := options.ServerOptions.Build()
 
 	cfg := &water.Config{
 		TransportModuleBin: b,
 		OverrideLogger:     slogLogger,
 		NetworkDialerFunc: func(network, address string) (net.Conn, error) {
-			logger.Debug("received address ", address)
 			addr, err := netip.ParseAddrPort(address)
 			if err != nil {
 				return nil, err
 			}
 
-			socksAddr := M.SocksaddrFromNetIP(addr)
-			logger.Debug("dialing to address: ", address, " socks addr: ", socksAddr)
-			serverConn, err := outboundDialer.DialContext(log.ContextWithNewID(ctx), network, outbound.serverAddr)
-			if err != nil {
-				return nil, err
-			}
-
-			return serverConn, nil
+			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, M.SocksaddrFromNetIP(addr))
 		},
 	}
-
-	outbound.waterDialer, err = water.NewDialerWithContext(ctx, cfg)
+	waterDialer, err := water.NewDialerWithContext(ctx, cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	outbound := &Outbound{
+		logger:      logger,
+		waterDialer: waterDialer,
+		serverAddr:  serverAddr,
 	}
 
 	return outbound, nil
@@ -110,13 +103,16 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	return o.waterDialer.DialContext(ctx, network, fmt.Sprintf("%s:%d", destination.TCPAddr().IP.String(), destination.Port))
+	addr := fmt.Sprintf("%s:%d", o.serverAddr.TCPAddr().IP.String(), o.serverAddr.Port)
+	conn, err := o.waterDialer.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return waterTransport.NewWATERConnection(conn, destination), nil
 }
 
 func (o *Outbound) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
-	ctx, metadata := adapter.ExtendContext(ctx)
-	metadata.Outbound = o.Tag()
-	metadata.Destination = destination
 	return nil, E.New("not implemented")
 }
 
