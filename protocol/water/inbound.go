@@ -3,7 +3,6 @@ package water
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -120,10 +119,10 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 			metadata.Source = M.SocksaddrFromNet(conn.RemoteAddr()).Unwrap()
 			metadata.OriginDestination = M.SocksaddrFromNet(conn.LocalAddr()).Unwrap()
 			ctx := log.ContextWithNewID(i.ctx)
-			fmt.Printf("accepted WATER connection, metadata: %+v", metadata)
-
 			go i.service.NewConnection(ctx, conn, metadata.Source, func(it error) {
-				i.logger.ErrorContext(ctx, it)
+				if err != nil {
+					i.logger.ErrorContext(ctx, it)
+				}
 			})
 		}
 	}()
