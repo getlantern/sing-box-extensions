@@ -120,7 +120,7 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 			metadata.OriginDestination = M.SocksaddrFromNet(conn.LocalAddr()).Unwrap()
 			ctx := log.ContextWithNewID(i.ctx)
 			go i.service.NewConnection(ctx, conn, metadata.Source, func(it error) {
-				if err != nil {
+				if it != nil {
 					i.logger.ErrorContext(ctx, it)
 				}
 			})
