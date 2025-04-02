@@ -353,6 +353,11 @@ func (m *MutableRuleSet) loadFilters(s adapter.RuleSet) {
 	m.filterMu.Unlock()
 }
 
+// RuleFilePath returns the path to the rule file.
+func (m *MutableRuleSet) RuleFilePath() string {
+	return m.ruleFile
+}
+
 // ruleWrapper wraps an [adapter.Rule] to allow checking if the rule is enabled before matching.
 type ruleWrapper struct {
 	// Rule is the underlying rule.
