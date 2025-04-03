@@ -111,6 +111,11 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 		return nil
 	}
 
+	// Differently from other protocols, the WATER protocol doesn't have a
+	// function for wrapping a given connection, instead, it uses a listener to accept
+	// connections. So we're providing sing-box TCP listener to WATER
+	// and whenever WATER accepts a connection, it will use the service
+	// for handling the connection.
 	go func() {
 		for {
 			conn, err := i.waterListener.AcceptWATER()
