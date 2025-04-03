@@ -3,6 +3,7 @@ package water
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -140,5 +141,5 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 
 // Close stops the WATER inbound listener.
 func (i *Inbound) Close() error {
-	return i.listener.Close()
+	return errors.Join(i.waterListener.Close(), i.listener.Close())
 }
