@@ -121,6 +121,11 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 		for {
 			conn, err := i.waterListener.AcceptWATER()
 			if err != nil {
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Timeout() {
+					i.logger.Warn(err)
+					continue
+				}
 				i.logger.Error(err)
 				return
 			}
