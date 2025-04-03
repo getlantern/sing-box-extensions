@@ -42,6 +42,12 @@ func (h *slogHandler) Handle(ctx context.Context, record slog.Record) error {
 	messageBuilder := new(strings.Builder)
 	messageBuilder.WriteString(record.Message)
 	messageBuilder.WriteString(" ")
+	for i, group := range h.groups {
+		messageBuilder.WriteString(group)
+		if i < len(h.groups)-1 {
+			messageBuilder.WriteString(".")
+		}
+	}
 	record.Attrs(func(attr slog.Attr) bool {
 		messageBuilder.WriteString(attr.Key)
 		messageBuilder.WriteString("=")
@@ -110,6 +116,12 @@ func parseAttrs(attrs []slog.Attr) string {
 // WithGroup returns a new Handler with the given group appended to
 // the receiver's existing groups.
 func (h *slogHandler) WithGroup(name string) slog.Handler {
-	// TODO: Implement WithGroup
-	return h
+	newGroups := append(h.groups, name)
+	return &slogHandler{
+		logger:   h.logger,
+		minLevel: h.minLevel,
+		opts:     h.opts,
+		attrs:    h.attrs,
+		groups:   newGroups,
+	}
 }
