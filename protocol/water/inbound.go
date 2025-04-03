@@ -25,10 +25,12 @@ import (
 	_ "github.com/refraction-networking/water/transport/v1"
 )
 
+// RegisterInbound registers the WATER inbound with the given registry.
 func RegisterInbound(registry *inbound.Registry) {
 	inbound.Register[option.WATERInboundOptions](registry, constant.TypeWATER, NewInbound)
 }
 
+// Inbound represents a WATER inbound sing-box adapter.
 type Inbound struct {
 	inbound.Adapter
 	ctx           context.Context
@@ -40,6 +42,7 @@ type Inbound struct {
 	service       *waterTransport.Service
 }
 
+// NewInbound creates a new WATER inbound adapter.
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATERInboundOptions) (adapter.Inbound, error) {
 	if options.Transport == "" {
 		return nil, E.New("transport not defined")
@@ -102,6 +105,7 @@ func (i *Inbound) newPacketConnection(ctx context.Context, conn network.PacketCo
 	i.logger.ErrorContext(ctx, "packet connection not implemented")
 }
 
+// Start starts the WATER inbound adapter.
 func (i *Inbound) Start(stage adapter.StartStage) error {
 	if stage != adapter.StartStateStart {
 		return nil
@@ -129,6 +133,7 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 	return nil
 }
 
+// Close stops the WATER inbound listener.
 func (i *Inbound) Close() error {
 	return i.listener.Close()
 }

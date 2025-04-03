@@ -28,10 +28,12 @@ import (
 	"github.com/sagernet/sing/common/network"
 )
 
+// RegisterOutbound registers the WATER outbound adapter with the given registry.
 func RegisterOutbound(registry *outbound.Registry) {
 	outbound.Register[option.WATEROutboundOptions](registry, constant.TypeWATER, NewOutbound)
 }
 
+// Outbound represents a WATER outbound adapter.
 type Outbound struct {
 	outbound.Adapter
 	logger      logger.ContextLogger
@@ -39,6 +41,7 @@ type Outbound struct {
 	serverAddr  string
 }
 
+// NewOutbound creates a new WATER outbound adapter.
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATEROutboundOptions) (adapter.Outbound, error) {
 	timeout, err := time.ParseDuration(options.DownloadTimeout)
 	if err != nil {
@@ -97,6 +100,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	return outbound, nil
 }
 
+// DialContext dials a connection to the specified network and destination.
 func (o *Outbound) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
 	ctx, metadata := adapter.ExtendContext(ctx)
 	metadata.Outbound = o.Tag()
@@ -110,10 +114,13 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	return waterTransport.NewWATERConnection(conn, destination), nil
 }
 
+// ListenPacket is not implemented
 func (o *Outbound) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
 	return nil, E.New("not implemented")
 }
 
+// Network returns the supported network types for this outbound adapter.
+// In this case, it supports only TCP.
 func (o *Outbound) Network() []string {
 	return []string{network.NetworkTCP}
 }
