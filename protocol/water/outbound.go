@@ -36,7 +36,7 @@ type Outbound struct {
 	outbound.Adapter
 	logger      logger.ContextLogger
 	waterDialer water.Dialer
-	serverAddr  M.Socksaddr
+	serverAddr  string
 }
 
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATEROutboundOptions) (adapter.Outbound, error) {
@@ -70,8 +70,6 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, err
 	}
 
-	serverAddr := options.ServerOptions.Build()
-
 	cfg := &water.Config{
 		TransportModuleBin: b,
 		OverrideLogger:     slogLogger,
@@ -88,11 +86,12 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	if err != nil {
 		return nil, err
 	}
+	serverAddr := options.ServerOptions.Build()
 
 	outbound := &Outbound{
 		logger:      logger,
 		waterDialer: waterDialer,
-		serverAddr:  serverAddr,
+		serverAddr:  fmt.Sprintf("%s:%d", serverAddr.TCPAddr().IP.String(), serverAddr.Port),
 	}
 
 	return outbound, nil
@@ -103,8 +102,7 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	addr := fmt.Sprintf("%s:%d", o.serverAddr.TCPAddr().IP.String(), o.serverAddr.Port)
-	conn, err := o.waterDialer.DialContext(ctx, network, addr)
+	conn, err := o.waterDialer.DialContext(ctx, network, o.serverAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -114,10 +112,6 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 
 func (o *Outbound) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
 	return nil, E.New("not implemented")
-}
-
-func (o *Outbound) Close() error {
-	return nil
 }
 
 func (o *Outbound) Network() []string {
