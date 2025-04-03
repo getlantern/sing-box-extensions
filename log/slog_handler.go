@@ -10,7 +10,7 @@ import (
 )
 
 // slogHandler is a Handler that implements the slog.Handler interface
-// and writes log records to a golog.Logger.
+// and writes log records to a log.ContextLogger.
 type slogHandler struct {
 	logger   log.ContextLogger
 	minLevel slog.Level
