@@ -23,14 +23,10 @@ func NewWATERConnection(conn net.Conn, destination M.Socksaddr) *WATERConn {
 	}
 }
 
-func (c *WATERConn) handshaked() bool {
+func (c *WATERConn) Write(b []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.handshake
-}
-
-func (c *WATERConn) Write(b []byte) (n int, err error) {
-	if c.handshaked() {
+	if c.handshake {
 		return c.Conn.Write(b)
 	}
 	err = M.SocksaddrSerializer.WriteAddrPort(c.Conn, c.destination)
@@ -38,8 +34,6 @@ func (c *WATERConn) Write(b []byte) (n int, err error) {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.handshake = true
 	return c.Conn.Write(b)
 }
