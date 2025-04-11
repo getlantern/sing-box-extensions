@@ -2,7 +2,7 @@ module github.com/getlantern/sing-box-extensions
 
 go 1.23.0
 
-replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.6-0.20250319162213-b56a0b17a972
+replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.6-0.20250411182257-639652d5e1c6
 
 replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero v1.7.1-w
 
@@ -11,7 +11,7 @@ replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero
 require (
 	github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8
 	github.com/refraction-networking/water v0.7.0-alpha
-	github.com/sagernet/sing v0.6.4
+	github.com/sagernet/sing v0.6.6-0.20250406121928-926a5a1e8bb7
 	github.com/sagernet/sing-box v1.11.5
 	github.com/stretchr/testify v1.10.0
 )
@@ -61,7 +61,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gofrs/uuid/v5 v5.3.0 // indirect
+	github.com/gofrs/uuid/v5 v5.3.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20231101202521-4ca4178f5c7a // indirect
@@ -120,9 +120,9 @@ require (
 	github.com/sagernet/nftables v0.3.0-beta.4 // indirect
 	github.com/sagernet/quic-go v0.49.0-beta.1 // indirect
 	github.com/sagernet/reality v0.0.0-20230406110435-ee17307e7691 // indirect
-	github.com/sagernet/sing-dns v0.4.0 // indirect
+	github.com/sagernet/sing-dns v0.4.1 // indirect
 	github.com/sagernet/sing-mux v0.3.1 // indirect
-	github.com/sagernet/sing-quic v0.4.0 // indirect
+	github.com/sagernet/sing-quic v0.4.1 // indirect
 	github.com/sagernet/sing-shadowsocks v0.2.7 // indirect
 	github.com/sagernet/sing-shadowsocks2 v0.2.0 // indirect
 	github.com/sagernet/sing-shadowtls v0.2.0 // indirect
