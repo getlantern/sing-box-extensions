@@ -1,5 +1,7 @@
 package constant
 
 const (
-	TypeWATER = "water"
+	TypeWATER    = "water"
+	TypeALGeneva = "algeneva"
+	TypeOutline  = "outline"
 )
