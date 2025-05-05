@@ -103,7 +103,7 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 			}),
 			Workers: options.Workers,
 		},
-		WireGuardAdvancedSecurityOptions: options.WireGuardAdvancedSecurityOptions, /**  ADDED FOR AMNEZIA  **/
+		AmneziaOptions: options.AmneziaOptions,
 	})
 	if err != nil {
 		return nil, err

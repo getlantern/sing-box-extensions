@@ -5,7 +5,7 @@ import (
 )
 
 /*
-WireGuardAdvancedSecurityOptions provides advanced security options for WireGuard required to activate AmneziaWG.
+AmneziaOptions provides advanced security options for WireGuard required to activate AmneziaWG.
 
 In AmneziaWG, random bytes are appended to every auth packet to alter their size.
 
@@ -20,7 +20,7 @@ minimum and maximum byte sizes can also be adjusted in the settings, using param
 
 */
 
-type WireGuardAdvancedSecurityOptions struct {
+type AmneziaOptions struct {
 	JunkPacketCount            int    `json:"junk_packet_count,omitempty"`             // jc
 	JunkPacketMinSize          int    `json:"junk_packet_min_size,omitempty"`          // jmin
 	JunkPacketMaxSize          int    `json:"junk_packet_max_size,omitempty"`          // jmax
@@ -34,5 +34,5 @@ type WireGuardAdvancedSecurityOptions struct {
 
 type AmneziaWGEndpointOptions struct {
 	O.WireGuardEndpointOptions
-	WireGuardAdvancedSecurityOptions /**  ADDED FOR AMNEZIA  **/
+	AmneziaOptions
 }
