@@ -1,6 +1,7 @@
 // Package amnezia implements the AmneziaWG dialer outbound.
 /*
-To activate advanced security mode for WireGuard (powered by AmneziaWG), please add the following fields to the configuration:
+To activate advanced security mode for WireGuard (powered by AmneziaWG), please add the following
+fields to the configuration:
 
 {
   ...
@@ -16,7 +17,8 @@ To activate advanced security mode for WireGuard (powered by AmneziaWG), please 
   "h4":  0, // TransportPacketMagicHeader
 }
 
-Setting any of these values with a non-zero value will activate the corresponding security feature. If neither of these values is set, the default WireGuard security will be used.
+Setting any of these values with a non-zero value will activate the corresponding security feature.
+If neither of these values is set, the default WireGuard security will be used.
 */
 package amnezia
 
@@ -33,7 +35,7 @@ import (
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing-box/transport/wireguard"
-	"github.com/sagernet/sing-dns"
+	dns "github.com/sagernet/sing-dns"
 	"github.com/sagernet/sing/common"
 	E "github.com/sagernet/sing/common/exceptions"
 	"github.com/sagernet/sing/common/logger"

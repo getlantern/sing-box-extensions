@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sagernet/sing-box/transport/wireguard"
 	"github.com/sagernet/sing/common"
 	E "github.com/sagernet/sing/common/exceptions"
 	F "github.com/sagernet/sing/common/format"
@@ -28,7 +29,7 @@ type Endpoint struct {
 	peers          []peerConfig
 	ipcConf        string
 	allowedAddress []netip.Prefix
-	tunDevice      Device
+	tunDevice      wireguard.Device
 	device         *device.Device
 	pauseManager   pause.Manager
 	pauseCallback  *list.Element[pause.Callback]
@@ -125,7 +126,7 @@ func NewEndpoint(options EndpointOptions) (*Endpoint, error) {
 	if options.MTU == 0 {
 		options.MTU = 1408
 	}
-	deviceOptions := DeviceOptions{
+	deviceOptions := wireguard.DeviceOptions{
 		Context:        options.Context,
 		Logger:         options.Logger,
 		System:         options.System,
@@ -137,7 +138,7 @@ func NewEndpoint(options EndpointOptions) (*Endpoint, error) {
 		Address:        options.Address,
 		AllowedAddress: allowedAddresses,
 	}
-	tunDevice, err := NewDevice(deviceOptions)
+	tunDevice, err := wireguard.NewDevice(deviceOptions)
 	if err != nil {
 		return nil, E.Cause(err, "create WireGuard device")
 	}
@@ -185,7 +186,7 @@ func (e *Endpoint) Start(resolve bool) error {
 			connectAddr = e.peers[0].endpoint
 			reserved = e.peers[0].reserved
 		}
-		bind = NewClientBind(e.options.Context, e.options.Logger, e.options.Dialer, isConnect, connectAddr, reserved)
+		bind = wireguard.NewClientBind(e.options.Context, e.options.Logger, e.options.Dialer, isConnect, connectAddr, reserved)
 	}
 	if isWgListener || len(e.peers) > 1 {
 		for _, peer := range e.peers {

@@ -2,13 +2,10 @@ package option
 
 import (
 	O "github.com/sagernet/sing-box/option"
-	"github.com/sagernet/sing/common/json/badoption"
-	"net/netip"
 )
 
-/*************  ADDED FOR AMNEZIA  *************/
 /*
-WireGuardAdvancedSecurityOptions provides advanced security options for WireGuard required to activate AmneziaWG.
+AmneziaOptions provides advanced security options for WireGuard required to activate AmneziaWG.
 
 In AmneziaWG, random bytes are appended to every auth packet to alter their size.
 
@@ -23,7 +20,7 @@ minimum and maximum byte sizes can also be adjusted in the settings, using param
 
 */
 
-type WireGuardAdvancedSecurityOptions struct {
+type AmneziaOptions struct {
 	JunkPacketCount            int    `json:"junk_packet_count,omitempty"`             // jc
 	JunkPacketMinSize          int    `json:"junk_packet_min_size,omitempty"`          // jmin
 	JunkPacketMaxSize          int    `json:"junk_packet_max_size,omitempty"`          // jmax
@@ -34,52 +31,8 @@ type WireGuardAdvancedSecurityOptions struct {
 	UnderloadPacketMagicHeader uint32 `json:"underload_packet_magic_header,omitempty"` // h3
 	TransportPacketMagicHeader uint32 `json:"transport_packet_magic_header,omitempty"` // h4
 }
-/********************  END  ********************/
-type WireGuardEndpointOptions struct {
-	System     bool                             `json:"system,omitempty"`
-	Name       string                           `json:"name,omitempty"`
-	MTU        uint32                           `json:"mtu,omitempty"`
-	Address    badoption.Listable[netip.Prefix] `json:"address"`
-	PrivateKey string                           `json:"private_key"`
-	ListenPort uint16                           `json:"listen_port,omitempty"`
-	Peers      []WireGuardPeer                  `json:"peers,omitempty"`
-	UDPTimeout badoption.Duration               `json:"udp_timeout,omitempty"`
-	Workers    int                              `json:"workers,omitempty"`
-	WireGuardAdvancedSecurityOptions	/**  ADDED FOR AMNEZIA  **/
-	O.DialerOptions
-}
 
-type WireGuardPeer struct {
-	Address                     string                           `json:"address,omitempty"`
-	Port                        uint16                           `json:"port,omitempty"`
-	PublicKey                   string                           `json:"public_key,omitempty"`
-	PreSharedKey                string                           `json:"pre_shared_key,omitempty"`
-	AllowedIPs                  badoption.Listable[netip.Prefix] `json:"allowed_ips,omitempty"`
-	PersistentKeepaliveInterval uint16                           `json:"persistent_keepalive_interval,omitempty"`
-	Reserved                    []uint8                          `json:"reserved,omitempty"`
-}
-
-type LegacyWireGuardOutboundOptions struct {
-	O.DialerOptions
-	SystemInterface bool                             `json:"system_interface,omitempty"`
-	GSO             bool                             `json:"gso,omitempty"`
-	InterfaceName   string                           `json:"interface_name,omitempty"`
-	LocalAddress    badoption.Listable[netip.Prefix] `json:"local_address"`
-	PrivateKey      string                           `json:"private_key"`
-	Peers           []LegacyWireGuardPeer            `json:"peers,omitempty"`
-	O.ServerOptions
-	PeerPublicKey string        `json:"peer_public_key"`
-	PreSharedKey  string        `json:"pre_shared_key,omitempty"`
-	Reserved      []uint8       `json:"reserved,omitempty"`
-	Workers       int           `json:"workers,omitempty"`
-	MTU           uint32        `json:"mtu,omitempty"`
-	Network       O.NetworkList `json:"network,omitempty"`
-}
-
-type LegacyWireGuardPeer struct {
-	O.ServerOptions
-	PublicKey    string                           `json:"public_key,omitempty"`
-	PreSharedKey string                           `json:"pre_shared_key,omitempty"`
-	AllowedIPs   badoption.Listable[netip.Prefix] `json:"allowed_ips,omitempty"`
-	Reserved     []uint8                          `json:"reserved,omitempty"`
+type AmneziaWGEndpointOptions struct {
+	O.WireGuardEndpointOptions
+	AmneziaOptions
 }
