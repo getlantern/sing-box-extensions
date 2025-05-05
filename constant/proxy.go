@@ -5,4 +5,5 @@ const (
 	TypeALGeneva  = "algeneva"
 	TypeOutline   = "outline"
 	TypeWATER     = "water"
+	TypeUnbounded = "unbounded"
 )
