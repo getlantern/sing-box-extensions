@@ -12,6 +12,8 @@ import (
 
 	"github.com/getlantern/sing-box-extensions/protocol/algeneva"
 	"github.com/getlantern/sing-box-extensions/protocol/outline"
+
+	"github.com/getlantern/sing-box-extensions/protocol/unbounded"
 )
 
 var supportedProtocols = []string{
@@ -68,6 +70,7 @@ func registerOutbounds(registry *outbound.Registry) {
 
 func registerEndpoints(registry *endpoint.Registry) {
 	amnezia.RegisterEndpoint(registry)
+	unbounded.RegisterEndpoint(registry)
 }
 
 func SupportedProtocols() []string {
