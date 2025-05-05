@@ -32,7 +32,7 @@ type WireGuardAdvancedSecurityOptions struct {
 	TransportPacketMagicHeader uint32 `json:"transport_packet_magic_header,omitempty"` // h4
 }
 
-type AmneziaEndpointOptions struct {
+type AmneziaWGEndpointOptions struct {
 	O.WireGuardEndpointOptions
 	WireGuardAdvancedSecurityOptions /**  ADDED FOR AMNEZIA  **/
 }
