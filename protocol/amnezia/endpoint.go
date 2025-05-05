@@ -7,6 +7,7 @@ import (
 	"time"
 
 	O "github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/transport/wireguard"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/endpoint"
@@ -27,7 +28,7 @@ import (
 )
 
 func RegisterEndpoint(registry *endpoint.Registry) {
-	endpoint.Register[option.WireGuardEndpointOptions](registry, C.TypeWireGuard, NewEndpoint)
+	endpoint.Register[option.AmneziaEndpointOptions](registry, C.TypeWireGuard, NewEndpoint)
 }
 
 var (
@@ -44,7 +45,7 @@ type Endpoint struct {
 	endpoint       *amnezia.Endpoint
 }
 
-func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WireGuardEndpointOptions) (adapter.Endpoint, error) {
+func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.AmneziaEndpointOptions) (adapter.Endpoint, error) {
 	ep := &Endpoint{
 		Adapter:        endpoint.NewAdapterWithDialerOptions(C.TypeWireGuard, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
 		ctx:            ctx,
@@ -66,40 +67,42 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 		udpTimeout = C.UDPTimeout
 	}
 	wgEndpoint, err := amnezia.NewEndpoint(amnezia.EndpointOptions{
-		Context:    ctx,
-		Logger:     logger,
-		System:     options.System,
-		Handler:    ep,
-		UDPTimeout: udpTimeout,
-		Dialer:     outboundDialer,
-		CreateDialer: func(interfaceName string) N.Dialer {
-			return common.Must1(dialer.NewDefault(ctx, O.DialerOptions{
-				BindInterface: interfaceName,
-			}))
+		EndpointOptions: wireguard.EndpointOptions{
+			Context:    ctx,
+			Logger:     logger,
+			System:     options.System,
+			Handler:    ep,
+			UDPTimeout: udpTimeout,
+			Dialer:     outboundDialer,
+			CreateDialer: func(interfaceName string) N.Dialer {
+				return common.Must1(dialer.NewDefault(ctx, O.DialerOptions{
+					BindInterface: interfaceName,
+				}))
+			},
+			Name:       options.Name,
+			MTU:        options.MTU,
+			Address:    options.Address,
+			PrivateKey: options.PrivateKey,
+			ListenPort: options.ListenPort,
+			ResolvePeer: func(domain string) (netip.Addr, error) {
+				endpointAddresses, lookupErr := router.Lookup(ctx, domain, dns.DomainStrategy(options.DomainStrategy))
+				if lookupErr != nil {
+					return netip.Addr{}, lookupErr
+				}
+				return endpointAddresses[0], nil
+			},
+			Peers: common.Map(options.Peers, func(it O.WireGuardPeer) wireguard.PeerOptions {
+				return wireguard.PeerOptions{
+					Endpoint:                    M.ParseSocksaddrHostPort(it.Address, it.Port),
+					PublicKey:                   it.PublicKey,
+					PreSharedKey:                it.PreSharedKey,
+					AllowedIPs:                  it.AllowedIPs,
+					PersistentKeepaliveInterval: it.PersistentKeepaliveInterval,
+					Reserved:                    it.Reserved,
+				}
+			}),
+			Workers: options.Workers,
 		},
-		Name:       options.Name,
-		MTU:        options.MTU,
-		Address:    options.Address,
-		PrivateKey: options.PrivateKey,
-		ListenPort: options.ListenPort,
-		ResolvePeer: func(domain string) (netip.Addr, error) {
-			endpointAddresses, lookupErr := router.Lookup(ctx, domain, dns.DomainStrategy(options.DomainStrategy))
-			if lookupErr != nil {
-				return netip.Addr{}, lookupErr
-			}
-			return endpointAddresses[0], nil
-		},
-		Peers: common.Map(options.Peers, func(it option.WireGuardPeer) amnezia.PeerOptions {
-			return amnezia.PeerOptions{
-				Endpoint:                    M.ParseSocksaddrHostPort(it.Address, it.Port),
-				PublicKey:                   it.PublicKey,
-				PreSharedKey:                it.PreSharedKey,
-				AllowedIPs:                  it.AllowedIPs,
-				PersistentKeepaliveInterval: it.PersistentKeepaliveInterval,
-				Reserved:                    it.Reserved,
-			}
-		}),
-		Workers:                          options.Workers,
 		WireGuardAdvancedSecurityOptions: options.WireGuardAdvancedSecurityOptions, /**  ADDED FOR AMNEZIA  **/
 	})
 	if err != nil {
