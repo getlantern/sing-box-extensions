@@ -17,7 +17,8 @@ import (
 )
 
 // Outbound implements the unbounded outbound that initiate QUIC connection to the
-// QUIC server in inbound.go through WebRTC data tunnels
+// QUIC server in inbound.go through WebRTC data tunnels. It also can be used to dial
+// to the existing ubounded network to proxy http/https traffic.
 type Outbound struct {
 	outbound.Adapter
 	bfConn *clientcore.BroflakeConn
