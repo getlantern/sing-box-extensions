@@ -71,3 +71,17 @@ furies:
       - deb
       - rpm
 
+
+dockers:
+  - image_templates:
+      - "getlantern/sing-box-extensions:latest"
+      - "getlantern/sing-box-extensions:{{ .Tag }}"
+
+dockerhub:
+  - images:
+      - getlantern/sing-box-extensions
+    username: getlantern
+    secret_name: DOCKER_PASSWORD
+    full_description:
+      from_file:
+        path: ./README.md
