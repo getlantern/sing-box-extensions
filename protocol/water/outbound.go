@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
 	"time"
 
 	waterDownloader "github.com/getlantern/lantern-water/downloader"
@@ -47,10 +46,6 @@ type Outbound struct {
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.WATEROutboundOptions) (adapter.Outbound, error) {
 	timeout, err := time.ParseDuration(options.DownloadTimeout)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := os.MkdirAll(options.Dir, 0644); !os.IsExist(err) {
 		return nil, err
 	}
 
@@ -108,6 +103,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	serverAddr := options.ServerOptions.Build()
 
 	outbound := &Outbound{
+		Adapter:     outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
 		logger:      logger,
 		waterDialer: waterDialer,
 		serverAddr:  fmt.Sprintf("%s:%d", serverAddr.TCPAddr().IP.String(), serverAddr.Port),
