@@ -23,6 +23,7 @@ import (
 	"github.com/sagernet/sing-box/common/dialer"
 	"github.com/sagernet/sing-box/log"
 	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/sagernet/sing/common/json"
 	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/network"
@@ -85,6 +86,16 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, M.SocksaddrFromNetIP(addr))
 		},
 	}
+
+	if options.Config != nil {
+		transportModuleConfig, err := json.MarshalContext(ctx, options.Config)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.TransportModuleConfig = water.TransportModuleConfigFromBytes(transportModuleConfig)
+	}
+
 	waterDialer, err := water.NewDialerWithContext(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -92,6 +103,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	serverAddr := options.ServerOptions.Build()
 
 	outbound := &Outbound{
+		Adapter:     outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
 		logger:      logger,
 		waterDialer: waterDialer,
 		serverAddr:  fmt.Sprintf("%s:%d", serverAddr.TCPAddr().IP.String(), serverAddr.Port),

@@ -2,17 +2,34 @@ package option
 
 import "github.com/sagernet/sing-box/option"
 
+// WATERInboundOptions specifies the configuration/options for starting a WATER
+// listener
 type WATERInboundOptions struct {
 	option.ListenOptions
-	Transport       string   `json:"transport"`
+	// Transport works as a identifier for the WASM logs
+	Transport string `json:"transport"`
+	// WASMAvailableAt must provide a list of URLs where the WASM file
+	// can be downloaded
 	WASMAvailableAt []string `json:"wasm_available_at"`
+	// Config is a optional config that will be sent to the WASM file.
+	Config map[string]any `json:"config,omitempty"`
 }
 
+// WATEROutboundOptions specifies the configuration/options for starting a WATER
+// dialer
 type WATEROutboundOptions struct {
 	option.ServerOptions
 	option.DialerOptions
-	Transport       string   `json:"transport"`
+	// Transport works as a identifier for the WASM logs
+	Transport string `json:"transport"`
+	// WASMAvailableAt must provide a list of URLs where the WASM file
+	// can be downloaded
 	WASMAvailableAt []string `json:"wasm_available_at"`
-	DownloadTimeout string   `json:"download_timeout"`
-	Dir             string   `json:"water_dir"`
+	// DownloadTimeout specifies how much time the downloader should wait
+	// until it cancel and try to fetch from another URL
+	DownloadTimeout string `json:"download_timeout"`
+	// Dir specifies which directory should store the WASM files
+	Dir string `json:"water_dir"`
+	// Config is a optional config that will be sent to the WASM file.
+	Config map[string]any `json:"config,omitempty"`
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/sagernet/sing-box/common/listener"
 	"github.com/sagernet/sing-box/log"
 	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/sagernet/sing/common/json"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/network"
 
@@ -85,6 +86,15 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		OverrideLogger:     slog.New(L.NewLogHandler(logger)),
 		TransportModuleBin: wasmBuffer.Bytes(),
 		NetworkListener:    tcpListener,
+	}
+
+	if options.Config != nil {
+		transportModuleConfig, err := json.MarshalContext(ctx, options.Config)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.TransportModuleConfig = water.TransportModuleConfigFromBytes(transportModuleConfig)
 	}
 
 	inbound.waterListener, err = water.NewListenerWithContext(ctx, cfg)
