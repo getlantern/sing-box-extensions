@@ -48,6 +48,7 @@ type Inbound struct {
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.UnboundedInboundOptions) (adapter.Inbound, error) {
 	// TODO: better way to enforce this?
 	if options.Detour == "" {
+		logger.Error("detour must be set")
 		return nil, errors.New("detour must be set")
 	}
 
@@ -55,7 +56,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	bfOpt.Netstated = options.Netstated
 	// this ClientType is only used here, which creates WebRTC data tunnels, and routes the traffic to BroflakeConn
 	bfOpt.ClientType = "singbox-inbound"
-	// TODO: find out why setting these to 5, 5 don't work
+	// TODO: find out why setting these to 5, 5 doesn't work
 	bfOpt.CTableSize = 1
 	bfOpt.PTableSize = 1
 
@@ -123,7 +124,7 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 }
 
 func (i *Inbound) detourConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
-	i.logger.InfoContext(ctx, "proxy connection. Detouring to %v", i.detour)
+	i.logger.TraceContext(ctx, "proxy connection. Detouring to ", i.detour)
 	// TODO: this is deprecated so find the correct way to do this
 	metadata.InboundDetour = i.detour
 	// when the above InBoundDetour is set, these are overridden so there is no need to set those fields

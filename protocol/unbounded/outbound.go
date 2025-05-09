@@ -21,6 +21,7 @@ import (
 // to the existing ubounded network to proxy http/https traffic.
 type Outbound struct {
 	outbound.Adapter
+	logger log.ContextLogger
 	bfConn *clientcore.BroflakeConn
 	ql     *clientcore.QUICLayer
 }
@@ -31,7 +32,7 @@ func RegisterOutbound(registry *outbound.Registry) {
 }
 
 // NewOutbound creates a unbounded outbound that uses the unbounded network
-func NewOutbound(ctx context.Context, router adapter.Router, log log.ContextLogger, tag string, options option.UnboundedOutboundOptions) (adapter.Outbound, error) {
+func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.UnboundedOutboundOptions) (adapter.Outbound, error) {
 	bfOpt := clientcore.NewDefaultBroflakeOptions()
 	bfOpt.Netstated = options.Netstated
 
@@ -43,6 +44,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, log log.ContextLogg
 	// egOpt not being used so passing nil
 	bfconn, _, err := clientcore.NewBroflake(bfOpt, rtcOpt, nil)
 	if err != nil {
+		logger.Error("failed to create unbounded connection: %v", err)
 		return nil, err
 	}
 
@@ -58,12 +60,14 @@ func NewOutbound(ctx context.Context, router adapter.Router, log log.ContextLogg
 		&clientcore.QUICLayerOptions{ServerName: options.ServerName, InsecureSkipVerify: insecureSkipVerify, CA: certPool},
 	)
 	if err != nil {
+		logger.Error("failed to create QUIC layer: %v", err)
 		return nil, err
 	}
 	go ql.DialAndMaintainQUICConnection()
 
 	return &Outbound{
 		Adapter: outbound.NewAdapterWithDialerOptions(C.TypeUnbounded, tag, []string{network.NetworkTCP}, options.DialerOptions),
+		logger:  logger,
 		bfConn:  bfconn,
 		ql:      ql,
 	}, nil
@@ -71,7 +75,15 @@ func NewOutbound(ctx context.Context, router adapter.Router, log log.ContextLogg
 
 // DialContext calls the underlying QUIC layer and dial through the QUIC connection to the unbounded network
 func (o *Outbound) DialContext(ctx context.Context, network string, destination metadata.Socksaddr) (net.Conn, error) {
-	return o.ql.DialContext(ctx)
+	ctx, metadata := adapter.ExtendContext(ctx)
+	metadata.Outbound = o.Tag()
+	metadata.Destination = destination
+	conn, err := o.ql.DialContext(ctx)
+	if err != nil {
+		o.logger.ErrorContext(ctx, "failed to dial QUIC connection: %v", err)
+		return nil, err
+	}
+	return conn, nil
 }
 
 // ListenPacket isn't implemented
