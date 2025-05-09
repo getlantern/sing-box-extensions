@@ -35,9 +35,10 @@ func RegisterOutbound(registry *outbound.Registry) {
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.UnboundedOutboundOptions) (adapter.Outbound, error) {
 	bfOpt := clientcore.NewDefaultBroflakeOptions()
 	bfOpt.Netstated = options.Netstated
+	bfOpt.ClientType = "desktop"
 
 	rtcOpt := clientcore.NewDefaultWebRTCOptions()
-	rtcOpt.Tag = options.Tag
+	rtcOpt.Tag = options.WebRTCTag
 	rtcOpt.DiscoverySrv = options.Freddie
 	//rtcOpt.HttpClient = //TODO: maybe use kindling
 

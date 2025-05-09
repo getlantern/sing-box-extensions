@@ -61,7 +61,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	bfOpt.PTableSize = 1
 
 	rtcOpt := clientcore.NewDefaultWebRTCOptions()
-	rtcOpt.Tag = options.Tag
+	rtcOpt.Tag = options.WebRTCTag
 	rtcOpt.DiscoverySrv = options.Freddie
 	//rtcOpt.HttpClient = //TODO: maybe use kindling
 

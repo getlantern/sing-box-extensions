@@ -7,7 +7,7 @@ type UnboundedInboundOptions struct {
 	//Transport string `json:"transport"`
 	Freddie   string `json:"freddie"`
 	Netstated string `json:"netstated"`
-	Tag       string `json:"tag"`
+	WebRTCTag string `json:"webrtc_tag"`
 	TLSCert   []byte `json:"tls_cert"`
 	TLSKey    []byte `json:"tls_key"`
 	// TODO
@@ -18,7 +18,7 @@ type UnboundedOutboundOptions struct {
 	option.DialerOptions
 	Freddie    string `json:"freddie"`
 	Netstated  string `json:"netstated"`
-	Tag        string `json:"tag"`
+	WebRTCTag  string `json:"webrtc_tag"`
 	ServerName string `json:"server_name"`
 	TLSCert    []byte `json:"tls_cert"`
 	// TODO
