@@ -63,6 +63,7 @@ func registerOutbounds(registry *outbound.Registry) {
 
 func registerEndpoints(registry *endpoint.Registry) {
 	amnezia.RegisterEndpoint(registry)
+	unbounded.RegisterEndpoint(registry)
 }
 
 func SupportedProtocols() []string {
