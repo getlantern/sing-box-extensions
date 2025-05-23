@@ -32,41 +32,27 @@ type Endpoint struct {
 	router adapter.Router
 	logger log.ContextLogger
 
-	// client
-	ql          *clientcore.QUICLayer
-	uClientConn *clientcore.BroflakeConn
+	outboundHttpClient *http.Client
 
-	// server
-	uPeerConn *clientcore.BroflakeConn
-	listener  net.Listener
+	// client
+	clientTag string
+	clientBf  *clientcore.UIImpl
+	ql        *clientcore.QUICLayer
+
+	// peer/server
+	peerTag  string
+	peerBf   *clientcore.UIImpl
+	listener net.Listener
 }
 
-func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.UnboundedEndpointOptions) (adapter.Endpoint, error) {
-	outboundDialer, err := dialer.New(ctx, options.DialerOptions)
-	if err != nil {
-		return nil, err
-	}
-	// TODO: find out if we can create just one http client, or we have to create multiple different ones
-	outboundHttpClient := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-				//logger.Debug("RTC http client dialing:", network, address) // TODO: remove
-				return outboundDialer.DialContext(ctx, network, M.ParseSocksaddr(address))
-			},
-			TLSClientConfig: &tls.Config{
-				// TODO
-				//RootCAs: adapter.RootPoolFromContext(ctx),
-			},
-		},
-	}
-
+func createClientOptions(options option.UnboundedEndpointOptions, outboundHttpClient *http.Client) (*clientcore.BroflakeOptions, *clientcore.WebRTCOptions, *clientcore.QUICLayerOptions) {
 	// unbounded client
 	bfOptClient := clientcore.NewDefaultBroflakeOptions()
 	bfOptClient.Netstated = options.Netstated
 	bfOptClient.ClientType = "desktop"
 	bfOptClient.NetstateHttpClient = outboundHttpClient
-	//bfOptClient.CTableSize = 1 //TODO: revert to default. This is just for testing.
-	//bfOptClient.PTableSize = 1
+	bfOptClient.CTableSize = 1 //TODO: revert to default. This is just for testing.
+	bfOptClient.PTableSize = 1
 
 	rtcOptClient := clientcore.NewDefaultWebRTCOptions()
 	rtcOptClient.Tag = uuid.New().String()
@@ -75,10 +61,26 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 	rtcOptClient.NATFailTimeout = 10 * time.Second
 	rtcOptClient.HttpClient = outboundHttpClient
 
-	// unbounded peer
+	// create a QUIC layer options for the client
+	certPool := x509.NewCertPool()
+	insecureSkipVerify := false
+	if options.TLSCert != nil {
+		certPool.AppendCertsFromPEM([]byte(options.TLSCert))
+		insecureSkipVerify = true
+	}
+
+	qlOptions := &clientcore.QUICLayerOptions{
+		ServerName:         options.ServerName,
+		InsecureSkipVerify: insecureSkipVerify,
+		CA:                 certPool,
+	}
+
+	return bfOptClient, rtcOptClient, qlOptions
+}
+
+func createPeerOptions(options option.UnboundedEndpointOptions, outboundHttpClient *http.Client) (*clientcore.BroflakeOptions, *clientcore.WebRTCOptions) {
 	bfOptPeer := clientcore.NewDefaultBroflakeOptions()
 	bfOptPeer.Netstated = options.Netstated
-	logger.Info("Running as unbounded peer")
 	// unbounded peer (proxy), this ClientType is only used here, which creates WebRTC data tunnels, and routes the traffic to BroflakeConn
 	bfOptPeer.ClientType = "singbox-inbound"
 	bfOptPeer.NetstateHttpClient = outboundHttpClient
@@ -93,45 +95,107 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 	rtcOptPeer.NATFailTimeout = 10 * time.Second
 	rtcOptPeer.HttpClient = outboundHttpClient
 
-	// udpConn, err := outboundDialer.ListenPacket(ctx, M.Socksaddr{Addr: netip.IPv4Unspecified()})
-	// if err != nil {
-	// 	logger.Error("failed to create a UDP conn: ", err)
-	// 	return nil, err
-	// }
-	// //rtcOpt.UDPConn = udpConn
+	return bfOptPeer, rtcOptPeer
+}
+
+func createOutboundHttpClient(ctx context.Context, options option.UnboundedEndpointOptions) *http.Client {
+	outboundDialer, err := dialer.New(ctx, options.DialerOptions)
+	if err != nil {
+		return nil
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				//logger.Debug("RTC http client dialing:", network, address) // TODO: remove
+				return outboundDialer.DialContext(ctx, network, M.ParseSocksaddr(address))
+			},
+			TLSClientConfig: &tls.Config{
+				// TODO
+				//RootCAs: adapter.RootPoolFromContext(ctx),
+			},
+		},
+	}
+}
+
+func (u *Endpoint) createClient(options option.UnboundedEndpointOptions) error {
+	bfOptClient, rtcOptClient, qlOpt := createClientOptions(options, u.outboundHttpClient)
+	u.clientTag = rtcOptClient.Tag
 
 	// egOpt not being used so passing nil
-	bfClientConn, _, err := clientcore.NewBroflake(bfOptClient, rtcOptClient, nil)
+	bfClientConn, ui, err := clientcore.NewBroflake(bfOptClient, rtcOptClient, nil)
 	if err != nil {
-		logger.Error("failed to create unbounded client connection: ", err)
-		return nil, err
+		u.logger.Error("failed to create unbounded client connection: ", err)
+		return err
 	}
-	bfPeerConn, _, err := clientcore.NewBroflake(bfOptPeer, rtcOptPeer, nil)
+	// TODO: maybe use sing-quic instead, or use tuic/packet.go implementation
+	ql, err := clientcore.NewQUICLayer(bfClientConn, qlOpt)
 	if err != nil {
-		logger.Error("failed to create unbounded peer connection: ", err)
-		return nil, err
+		u.logger.Error("failed to create QUIC layer: %v", err)
+		return err
 	}
+	go ql.DialAndMaintainQUICConnection()
+	u.clientBf = ui
+	u.ql = ql
+	u.logger.Info("Client created with tag:", u.clientTag)
+	return nil
+}
 
-	ep := &Endpoint{
-		Adapter:     endpoint.NewAdapterWithDialerOptions(C.TypeUnbounded, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
-		ctx:         ctx,
-		router:      router,
-		logger:      logger,
-		uClientConn: bfClientConn,
-		uPeerConn:   bfPeerConn,
+func (u *Endpoint) createPeer(options option.UnboundedEndpointOptions) error {
+	bfOptPeer, rtcOptPeer := createPeerOptions(options, u.outboundHttpClient)
+	u.peerTag = rtcOptPeer.Tag
+
+	bfPeerConn, ui, err := clientcore.NewBroflake(bfOptPeer, rtcOptPeer, nil)
+	if err != nil {
+		u.logger.Error("failed to create unbounded peer connection: ", err)
+		return err
 	}
-
-	// peer
 	// this creates a net.Listener that accepts QUIC connections over the bfconn, which reads/writes from/to the WebRTC data tunnel
-	l, err := egress.NewListenerFromPacketConn(ctx, bfPeerConn, string(options.TLSCert), string(options.TLSKey), ep.datagramHandler)
+	l, err := egress.NewListenerFromPacketConn(u.ctx, bfPeerConn, string(options.TLSCert), string(options.TLSKey), u.datagramHandler)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	ep.listener = l
+	u.peerBf = ui
+	u.listener = l
+	u.logger.Info("Peer created with tag:", u.peerTag)
+	return nil
+}
+
+func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.UnboundedEndpointOptions) (adapter.Endpoint, error) {
+	ep := &Endpoint{
+		Adapter: endpoint.NewAdapterWithDialerOptions(C.TypeUnbounded, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
+		ctx:     ctx,
+		router:  router,
+		logger:  logger,
+
+		// TODO: find out if we can create just one http client, or we have to create multiple different ones
+		outboundHttpClient: createOutboundHttpClient(ctx, options),
+	}
+
+	switch options.Role {
+	case "client":
+		if err := ep.createClient(options); err != nil {
+			logger.Error("failed to create endpoint as a client: ", err)
+			return nil, err
+		}
+	case "peer":
+		if err := ep.createPeer(options); err != nil {
+			logger.Error("failed to create endpoint as a peer: ", err)
+			return nil, err
+		}
+	default:
+		if err := ep.createClient(options); err != nil {
+			logger.Error("failed to create endpoint as a client (Role: both): ", err)
+			return nil, err
+		}
+		if err := ep.createPeer(options); err != nil {
+			logger.Error("failed to create Role as a peer (Role: both): ", err)
+			return nil, err
+		}
+	}
+	return ep, nil
 
 	//adapter.NewUpstreamHandlerEx(adapter.InboundContext{}, ep.NewConnectionEx, ep.NewPacketConnectionEx)
 
-	// TODO: not using our listener so this won't work
 	// ep.listener = listener.New(listener.Options{
 	// 	Context: ctx,
 	// 	Logger:  logger,
@@ -140,28 +204,6 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 	// 	//ConnectionHandler: ep,
 	// 	PacketHandler: ep,
 	// })
-
-	// create a QUIC layer (client)
-	certPool := x509.NewCertPool()
-	insecureSkipVerify := false
-	if options.TLSCert != nil {
-		certPool.AppendCertsFromPEM([]byte(options.TLSCert))
-		insecureSkipVerify = true
-	}
-
-	// TODO: maybe use sing-quic instead, or use tuic/packet.go implementation
-	ql, err := clientcore.NewQUICLayer(
-		bfClientConn,
-		&clientcore.QUICLayerOptions{ServerName: options.ServerName, InsecureSkipVerify: insecureSkipVerify, CA: certPool},
-	)
-	if err != nil {
-		logger.Error("failed to create QUIC layer: %v", err)
-		return nil, err
-	}
-	go ql.DialAndMaintainQUICConnection()
-	ep.ql = ql
-
-	return ep, nil
 }
 
 func (u *Endpoint) Start(stage adapter.StartStage) error {
@@ -229,7 +271,21 @@ func (u *Endpoint) datagramHandler(qconn quic.Connection) {
 
 func (u *Endpoint) Close() error {
 	u.logger.Info("Close()")
-	// TODO
+	// stop peer QUIC listener
+	if u.listener != nil {
+		u.listener.Close()
+	}
+	// stop client QUIC dialer
+	if u.ql != nil {
+		u.ql.Close()
+	}
+	// stop broflake engines
+	if u.clientBf != nil {
+		u.clientBf.Stop()
+	}
+	if u.peerBf != nil {
+		u.peerBf.Stop()
+	}
 	return nil
 }
 
