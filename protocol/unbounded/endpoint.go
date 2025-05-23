@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -130,7 +131,7 @@ func (u *Endpoint) createClient(options option.UnboundedEndpointOptions) error {
 	// TODO: maybe use sing-quic instead, or use tuic/packet.go implementation
 	ql, err := clientcore.NewQUICLayer(bfClientConn, qlOpt)
 	if err != nil {
-		u.logger.Error("failed to create QUIC layer: %v", err)
+		u.logger.Error("failed to create QUIC layer: ", err)
 		return err
 	}
 	go ql.DialAndMaintainQUICConnection()
@@ -207,10 +208,10 @@ func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextL
 }
 
 func (u *Endpoint) Start(stage adapter.StartStage) error {
-	if stage != adapter.StartStateStart {
+	if stage != adapter.StartStateStart || u.listener == nil {
 		return nil
 	}
-	u.logger.Info("Starting:", stage)
+	u.logger.Info("Starting unbounded listener")
 
 	// start listening on QUIC for the peer connection
 	go func() {
@@ -222,8 +223,8 @@ func (u *Endpoint) Start(stage adapter.StartStage) error {
 				case <-u.ctx.Done():
 					return
 				default:
-					u.logger.Error("accept error: %v", err)
-					continue
+					u.logger.Error("accept error: ", err)
+					return
 				}
 			}
 
@@ -270,7 +271,7 @@ func (u *Endpoint) datagramHandler(qconn quic.Connection) {
 }
 
 func (u *Endpoint) Close() error {
-	u.logger.Info("Close()")
+	u.logger.Info("Closing endpoint")
 	// stop peer QUIC listener
 	if u.listener != nil {
 		u.listener.Close()
@@ -290,6 +291,9 @@ func (u *Endpoint) Close() error {
 }
 
 func (u *Endpoint) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
+	if u.ql == nil {
+		return nil, errors.New("endpoint acts as an unbounded peer, cannot dial outbound")
+	}
 	switch network {
 	case N.NetworkTCP:
 		u.logger.InfoContext(ctx, "outbound connection to ", destination)
@@ -310,6 +314,9 @@ func (u *Endpoint) DialContext(ctx context.Context, network string, destination 
 }
 
 func (u *Endpoint) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
+	if u.ql == nil {
+		return nil, errors.New("endpoint acts as an unbounded peer, cannot dial packet outbound")
+	}
 	u.logger.InfoContext(ctx, "ListenPacket(): outbound packet connection to ", destination)
 	qconn, err := u.ql.QUICConn(ctx)
 	if err != nil {
