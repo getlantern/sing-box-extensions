@@ -254,7 +254,6 @@ func (h *UDPOverQUICHandler) routeUDPSession(session *UDPSession) {
 	metadata.Destination = M.SocksaddrFromNet(session.destAddr)
 
 	onClose := func(err error) {
-		h.logger.Info("ServerConn onClose with error ", err)
 		//session.conn.Close() // do not call close here. Let singbox handle the lifecycle of this conn.
 	}
 	h.logger.Info("Routing UDP connection ", metadata.Source, " -> ", metadata.Destination)

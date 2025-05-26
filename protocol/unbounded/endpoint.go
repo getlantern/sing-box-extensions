@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/getlantern/broflake/clientcore"
@@ -39,14 +40,17 @@ type Endpoint struct {
 	outboundHttpClient *http.Client
 
 	// client
-	clientTag string
-	clientBf  *clientcore.BroflakeEngine
-	ql        *clientcore.QUICLayer
+	clientTag        string
+	clientBf         *clientcore.BroflakeEngine
+	ql               *clientcore.QUICLayer
+	udpClientHandler *UDPOverQUICHandler
+	udpMutex         sync.RWMutex // for udpClientHandler
 
 	// peer/server
-	peerTag  string
-	peerBf   *clientcore.BroflakeEngine
-	listener net.Listener
+	peerTag          string
+	peerBf           *clientcore.BroflakeEngine
+	listener         net.Listener
+	udpServerHandler *UDPOverQUICHandler
 }
 
 func (u *Endpoint) createClientOptions(options option.UnboundedEndpointOptions) (*clientcore.BroflakeOptions, *clientcore.WebRTCOptions, *clientcore.QUICLayerOptions) {
@@ -120,10 +124,30 @@ func (u *Endpoint) createClient(options option.UnboundedEndpointOptions) error {
 		u.logger.Error("failed to create QUIC layer: ", err)
 		return err
 	}
-	go ql.DialAndMaintainQUICConnection()
+	connReady := make(chan quic.Connection)
+	go ql.DialAndMaintainQUICConnection(connReady)
 	u.clientBf = ui.BroflakeEngine
 	u.ql = ql
 	u.logger.Info("Client created with tag:", u.clientTag)
+
+	// setup UDP over QUIC handler
+	go func() {
+		select {
+		case <-u.ctx.Done():
+			return
+		case qconn := <-connReady:
+			u.udpMutex.RLock()
+			if u.udpClientHandler != nil {
+				u.udpClientHandler.cancel()
+			}
+			u.udpMutex.RUnlock()
+			// router specifically set to nil to indicate we are the client
+			u.udpMutex.Lock()
+			u.udpClientHandler = NewUDPOverQUICHandler(qconn, nil, u.logger, u.Tag(), u.Type())
+			u.udpMutex.Unlock()
+			u.logger.Info("UDP Handler ready")
+		}
+	}()
 	return nil
 }
 
@@ -144,6 +168,7 @@ func (u *Endpoint) createPeer(options option.UnboundedEndpointOptions) error {
 	u.peerBf = ui.BroflakeEngine
 	u.listener = l
 	u.logger.Info("Peer created with tag:", u.peerTag)
+
 	return nil
 }
 
@@ -252,33 +277,27 @@ func (u *Endpoint) Start(stage adapter.StartStage) error {
 
 func (u *Endpoint) datagramHandler(qconn quic.Connection) {
 	// create a new UDP handler that handles incoming packets (as a peer)
-	u.logger.Info("datagramHandler running:", qconn.LocalAddr().String())
-	handler := NewUDPOverQUICHandler(qconn, u.router, u.logger, u.Tag(), u.Type())
-	defer handler.cancel()
-	<-qconn.Context().Done()
-	u.logger.Info("datagramHandler exited:", qconn.LocalAddr().String())
-
-	// conn := NewQUICDatagramConn(qconn)
-	// _ = conn
-	// u.logger.Info("datagramHandler running:", conn.LocalAddr().String())
-	// for {
-	// 	buf := make([]byte, 1500)
-	// 	n, addr, err := conn.ReadFrom(buf)
-	// 	if err != nil {
-	// 		u.logger.Error("ReadFrom error: ", err)
-	// 		return
-	// 	}
-	// 	u.logger.Info("datagramHandler ReadFrom(): ", n, ", addr: ", addr, ", buf: ", string(buf))
-	// 	// wrap the []byte to a N.PacketConn TODO: isn't this silly? This must be wrong. Find out a way
-	// 	bconn := NewBytePacketConn(buf[:n], conn, addr, u.logger)
-	// 	u.newPacketConnectionEx(u.ctx, bconn, M.ParseSocksaddr("1.1.1.1:1111"), M.SocksaddrFromNet(addr), nil)
-	// }
-
-	//go u.newPacketConnectionEx(u.ctx, conn, source, destination, nil)
+	u.logger.Debug("datagramHandler running:", qconn.LocalAddr().String())
+	// client will only re-dial when the original quic.Connection is broken, so let's just create a new handler
+	u.udpServerHandler = NewUDPOverQUICHandler(qconn, u.router, u.logger, u.Tag(), u.Type())
+	defer u.udpServerHandler.cancel()
+	// block until the QUIC connection is closed or the context is done
+	select {
+	case <-u.ctx.Done():
+	case <-qconn.Context().Done():
+	}
+	u.logger.Debug("datagramHandler exited:", qconn.LocalAddr().String())
 }
 
 func (u *Endpoint) Close() error {
-	u.logger.Info("Closing...")
+	u.logger.Debug("Closing...")
+	// stop server/client UDP handler
+	if u.udpClientHandler != nil {
+		u.udpClientHandler.cancel()
+	}
+	if u.udpServerHandler != nil {
+		u.udpServerHandler.cancel()
+	}
 	// stop peer QUIC listener
 	if u.listener != nil {
 		u.listener.Close()
@@ -337,18 +356,20 @@ func (u *Endpoint) ListenPacket(ctx context.Context, destination M.Socksaddr) (n
 	if u.ql == nil {
 		return nil, errors.New("endpoint acts as an unbounded peer, cannot dial packet outbound")
 	}
+
 	u.logger.InfoContext(ctx, "ListenPacket(): outbound packet connection to ", destination)
-	qconn, err := u.ql.QUICConn(ctx)
-	if err != nil {
-		u.logger.ErrorContext(ctx, "failed to obtain QUIC connection: ", err)
-		return nil, err
-	}
+
 	// Create a local address for this connection
 	localAddr := &net.UDPAddr{
 		IP:   net.IPv4(127, 0, 0, 1),
 		Port: 0,
 	}
-	handler := NewUDPOverQUICHandler(qconn, nil, u.logger, u.Tag(), u.Type()) // router specifically set to nil to indicate we are the client
+	u.udpMutex.RLock()
+	handler := u.udpClientHandler
+	u.udpMutex.RUnlock()
+	if handler == nil {
+		return nil, errors.New("unable to create outbound packet connection: no UDP handler")
+	}
 	return handler.NewClientUDPConn(localAddr, destination), nil
 }
 
