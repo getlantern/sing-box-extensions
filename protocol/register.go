@@ -51,14 +51,12 @@ func GetRegistries() (*inbound.Registry, *outbound.Registry, *endpoint.Registry)
 
 func registerInbounds(registry *inbound.Registry) {
 	algeneva.RegisterInbound(registry)
-	unbounded.RegisterInbound(registry)
 }
 
 func registerOutbounds(registry *outbound.Registry) {
 	algeneva.RegisterOutbound(registry)
 	outline.RegisterOutbound(registry)
 	amnezia.RegisterOutbound(registry)
-	unbounded.RegisterOutbound(registry)
 }
 
 func registerEndpoints(registry *endpoint.Registry) {
