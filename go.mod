@@ -4,7 +4,7 @@ go 1.23.6
 
 toolchain go1.24.1
 
-replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.10
+replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.11-lantern
 
 replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero v1.7.1-w
 
@@ -20,7 +20,7 @@ require (
 	github.com/refraction-networking/water v0.7.0-alpha
 	github.com/sagernet/sing v0.6.9
 	github.com/sagernet/sing-box v1.11.5
-	github.com/sagernet/sing-dns v0.4.2
+	github.com/sagernet/sing-dns v0.4.3
 	github.com/sagernet/wireguard-go v0.0.1-beta.7
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.35.0
