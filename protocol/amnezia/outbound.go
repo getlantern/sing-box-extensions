@@ -146,11 +146,6 @@ func (o *Outbound) Close() error {
 	return o.endpoint.Close()
 }
 
-func (o *Outbound) InterfaceUpdated() {
-	o.endpoint.BindUpdate()
-	return
-}
-
 func (o *Outbound) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
 	switch network {
 	case N.NetworkTCP:
