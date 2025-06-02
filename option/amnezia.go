@@ -5,15 +5,15 @@ import (
 )
 
 /*
-AmneziaOptions provides advanced security options for WireGuard required to activate AmneziaWG.
+AmneziaOptions provides advanced security options for WireGuard required to activate Amnezia.
 
-In AmneziaWG, random bytes are appended to every auth packet to alter their size.
+In Amnezia, random bytes are appended to every auth packet to alter their size.
 
 Thus, "init and response handshake packets" have added "junk" at the beginning of their data, the size of which
 is determined by the values S1 and S2.
 
 By default, the initiating handshake packet has a fixed size (148 bytes). After adding the junk, its size becomes 148 bytes + S1.
-AmneziaWG also incorporates another trick for more reliable masking. Before initiating a session, Amnezia sends a
+Amnezia also incorporates another trick for more reliable masking. Before initiating a session, Amnezia sends a
 
 certain number of "junk" packets to thoroughly confuse DPI systems. The number of these packets and their
 minimum and maximum byte sizes can also be adjusted in the settings, using parameters Jc, Jmin, and Jmax.
@@ -32,7 +32,7 @@ type AmneziaOptions struct {
 	TransportPacketMagicHeader uint32 `json:"transport_packet_magic_header,omitempty"` // h4
 }
 
-type AmneziaWGEndpointOptions struct {
+type AmneziaEndpointOptions struct {
 	O.WireGuardEndpointOptions
 	AmneziaOptions
 }

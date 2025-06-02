@@ -1,6 +1,6 @@
-// Package amnezia implements the AmneziaWG dialer outbound.
+// Package amnezia implements the Amnezia dialer outbound.
 /*
-To activate advanced security mode for WireGuard (powered by AmneziaWG), please add the following
+To activate advanced security mode for WireGuard (powered by Amnezia), please add the following
 fields to the configuration:
 
 {
@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/getlantern/sing-box-extensions/constant"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/outbound"
 	"github.com/sagernet/sing-box/common/dialer"
@@ -42,10 +41,12 @@ import (
 	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
+
+	"github.com/getlantern/sing-box-extensions/constant"
 )
 
 func RegisterOutbound(registry *outbound.Registry) {
-	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, constant.TypeAmneziaWG, NewOutbound)
+	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, constant.TypeAmnezia, NewOutbound)
 }
 
 var (
