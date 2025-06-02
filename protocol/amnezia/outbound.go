@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/getlantern/sing-box-extensions/constant"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/outbound"
 	"github.com/sagernet/sing-box/common/dialer"
@@ -44,7 +45,7 @@ import (
 )
 
 func RegisterOutbound(registry *outbound.Registry) {
-	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, C.TypeWireGuard, NewOutbound)
+	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, constant.TypeAmneziaWG, NewOutbound)
 }
 
 var (
