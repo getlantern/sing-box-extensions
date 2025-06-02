@@ -41,10 +41,12 @@ import (
 	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
+
+	"github.com/getlantern/sing-box-extensions/constant"
 )
 
 func RegisterOutbound(registry *outbound.Registry) {
-	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, C.TypeWireGuard, NewOutbound)
+	outbound.Register[option.LegacyWireGuardOutboundOptions](registry, constant.TypeAmnezia, NewOutbound)
 }
 
 var (

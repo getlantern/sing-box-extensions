@@ -22,13 +22,14 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 
+	"github.com/getlantern/sing-box-extensions/constant"
 	"github.com/getlantern/sing-box-extensions/metrics"
 	"github.com/getlantern/sing-box-extensions/option"
 	"github.com/getlantern/sing-box-extensions/transport/amnezia"
 )
 
 func RegisterEndpoint(registry *endpoint.Registry) {
-	endpoint.Register[option.AmneziaEndpointOptions](registry, C.TypeWireGuard, NewEndpoint)
+	endpoint.Register[option.AmneziaEndpointOptions](registry, constant.TypeAmnezia, NewEndpoint)
 }
 
 var (
