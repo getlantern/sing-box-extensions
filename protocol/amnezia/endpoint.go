@@ -48,7 +48,7 @@ type Endpoint struct {
 
 func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.AmneziaEndpointOptions) (adapter.Endpoint, error) {
 	ep := &Endpoint{
-		Adapter:        endpoint.NewAdapterWithDialerOptions(C.TypeWireGuard, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
+		Adapter:        endpoint.NewAdapterWithDialerOptions(constant.TypeAmnezia, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
 		ctx:            ctx,
 		router:         router,
 		logger:         logger,
