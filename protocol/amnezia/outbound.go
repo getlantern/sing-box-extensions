@@ -1,6 +1,6 @@
-// Package amnezia implements the AmneziaWG dialer outbound.
+// Package amnezia implements the Amnezia dialer outbound.
 /*
-To activate advanced security mode for WireGuard (powered by AmneziaWG), please add the following
+To activate advanced security mode for WireGuard (powered by Amnezia), please add the following
 fields to the configuration:
 
 {
