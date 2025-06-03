@@ -18,7 +18,7 @@ import (
 )
 
 func RegisterFallback(registry *outbound.Registry) {
-	outbound.Register[option.FallBackOutboundOptions](registry, constant.TypeFallback, NewFallback)
+	outbound.Register[option.FallbackOutboundOptions](registry, constant.TypeFallback, NewFallback)
 }
 
 // Fallback is an outbound adapter that attempts to use a primary outbound, and falls back to a
@@ -26,14 +26,14 @@ func RegisterFallback(registry *outbound.Registry) {
 type Fallback struct {
 	outbound.Adapter
 	ctx         context.Context
-	outbound    adapter.OutboundManager
+	outboundMgr adapter.OutboundManager
 	logger      logger.ContextLogger
 	primaryTag  string
 	fallbackTag string
 }
 
 // NewFallback creates a new Fallback outbound adapter.
-func NewFallback(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.FallBackOutboundOptions) (adapter.Outbound, error) {
+func NewFallback(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.FallbackOutboundOptions) (adapter.Outbound, error) {
 	if options.Primary == "" {
 		return nil, errors.New("missing primary outbound tag")
 	}
@@ -48,7 +48,7 @@ func NewFallback(ctx context.Context, router adapter.Router, logger log.ContextL
 	return &Fallback{
 		Adapter:     outbound.NewAdapter(constant.TypeFallback, tag, nil, outbounds),
 		ctx:         ctx,
-		outbound:    service.FromContext[adapter.OutboundManager](ctx),
+		outboundMgr: service.FromContext[adapter.OutboundManager](ctx),
 		logger:      logger,
 		primaryTag:  options.Primary,
 		fallbackTag: options.Fallback,
@@ -57,10 +57,10 @@ func NewFallback(ctx context.Context, router adapter.Router, logger log.ContextL
 
 // Start checks that both the primary and fallback outbounds are available.
 func (d *Fallback) Start() error {
-	if _, loaded := d.outbound.Outbound(d.primaryTag); !loaded {
+	if _, loaded := d.outboundMgr.Outbound(d.primaryTag); !loaded {
 		return fmt.Errorf("missing primary outbound %s", d.primaryTag)
 	}
-	if _, loaded := d.outbound.Outbound(d.fallbackTag); !loaded {
+	if _, loaded := d.outboundMgr.Outbound(d.fallbackTag); !loaded {
 		return fmt.Errorf("missing fallback outbound %s", d.fallbackTag)
 	}
 	return nil
@@ -69,7 +69,7 @@ func (d *Fallback) Start() error {
 // DialContext attempts to dial using the primary outbound. If it fails, it falls back to the
 // fallback outbound.
 func (d *Fallback) DialContext(ctx context.Context, network string, destination metadata.Socksaddr) (net.Conn, error) {
-	outbound, loaded := d.outbound.Outbound(d.primaryTag)
+	outbound, loaded := d.outboundMgr.Outbound(d.primaryTag)
 	if !loaded {
 		return nil, fmt.Errorf("primary outbound %s not found", d.primaryTag)
 	}
@@ -79,7 +79,7 @@ func (d *Fallback) DialContext(ctx context.Context, network string, destination 
 	}
 
 	d.logger.Error("dial on primary outbound: ", err)
-	outbound, loaded = d.outbound.Outbound(d.fallbackTag)
+	outbound, loaded = d.outboundMgr.Outbound(d.fallbackTag)
 	if !loaded {
 		return nil, fmt.Errorf("fallback outbound %s not found", d.fallbackTag)
 	}
@@ -93,7 +93,7 @@ func (d *Fallback) DialContext(ctx context.Context, network string, destination 
 // ListenPacket attempts to create a packet connection using the primary outbound. If it fails, it
 // falls back to the fallback outbound.
 func (d *Fallback) ListenPacket(ctx context.Context, destination metadata.Socksaddr) (net.PacketConn, error) {
-	outbound, loaded := d.outbound.Outbound(d.primaryTag)
+	outbound, loaded := d.outboundMgr.Outbound(d.primaryTag)
 	if !loaded {
 		return nil, fmt.Errorf("primary outbound %s not found", d.primaryTag)
 	}
@@ -103,7 +103,7 @@ func (d *Fallback) ListenPacket(ctx context.Context, destination metadata.Socksa
 	}
 
 	d.logger.Error("packet connection on primary outbound: ", err)
-	outbound, loaded = d.outbound.Outbound(d.fallbackTag)
+	outbound, loaded = d.outboundMgr.Outbound(d.fallbackTag)
 	if !loaded {
 		return nil, fmt.Errorf("fallback outbound %s not found", d.fallbackTag)
 	}
