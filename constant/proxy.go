@@ -6,3 +6,7 @@ const (
 	TypeOutline  = "outline"
 	TypeWATER    = "water"
 )
+
+const (
+	TypeFallback = "fallback"
+)

@@ -7,6 +7,7 @@ import (
 	"github.com/sagernet/sing-box/include"
 
 	"github.com/getlantern/sing-box-extensions/protocol/amnezia"
+	"github.com/getlantern/sing-box-extensions/protocol/group"
 
 	"github.com/getlantern/sing-box-extensions/protocol/algeneva"
 	"github.com/getlantern/sing-box-extensions/protocol/outline"
@@ -53,9 +54,13 @@ func registerInbounds(registry *inbound.Registry) {
 }
 
 func registerOutbounds(registry *outbound.Registry) {
+	// custom protocol outbounds
 	algeneva.RegisterOutbound(registry)
 	outline.RegisterOutbound(registry)
 	amnezia.RegisterOutbound(registry)
+
+	// utility outbounds
+	group.RegisterFallback(registry)
 }
 
 func registerEndpoints(registry *endpoint.Registry) {
