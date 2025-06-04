@@ -25,7 +25,6 @@ func RegisterFallback(registry *outbound.Registry) {
 // secondary outbound if the primary fails.
 type Fallback struct {
 	outbound.Adapter
-	ctx         context.Context
 	outboundMgr adapter.OutboundManager
 	logger      logger.ContextLogger
 	primaryTag  string
@@ -47,7 +46,6 @@ func NewFallback(ctx context.Context, router adapter.Router, logger log.ContextL
 	outbounds := []string{options.Primary, options.Fallback}
 	return &Fallback{
 		Adapter:     outbound.NewAdapter(constant.TypeFallback, tag, nil, outbounds),
-		ctx:         ctx,
 		outboundMgr: service.FromContext[adapter.OutboundManager](ctx),
 		logger:      logger,
 		primaryTag:  options.Primary,
