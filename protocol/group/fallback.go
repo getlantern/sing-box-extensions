@@ -100,7 +100,7 @@ func (d *Fallback) ListenPacket(ctx context.Context, destination metadata.Socksa
 		return conn, nil
 	}
 
-	d.logger.Error("packet connection on primary outbound: ", err)
+	d.logger.WarnContext(ctx, "packet connection on primary outbound: ", err)
 	outbound, loaded = d.outboundMgr.Outbound(d.fallbackTag)
 	if !loaded {
 		return nil, fmt.Errorf("fallback outbound %s not found", d.fallbackTag)
