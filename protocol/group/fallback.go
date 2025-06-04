@@ -76,7 +76,7 @@ func (d *Fallback) DialContext(ctx context.Context, network string, destination 
 		return conn, nil
 	}
 
-	d.logger.Error("dial on primary outbound: ", err)
+	d.logger.WarnContext(ctx, "dial on primary outbound: ", err)
 	outbound, loaded = d.outboundMgr.Outbound(d.fallbackTag)
 	if !loaded {
 		return nil, fmt.Errorf("fallback outbound %s not found", d.fallbackTag)
