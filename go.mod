@@ -146,6 +146,7 @@ require (
 	github.com/sagernet/utls v1.6.7 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tetratelabs/wazero v1.7.1 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
