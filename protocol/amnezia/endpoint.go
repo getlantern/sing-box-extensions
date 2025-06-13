@@ -22,13 +22,14 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 
+	"github.com/getlantern/sing-box-extensions/constant"
 	"github.com/getlantern/sing-box-extensions/metrics"
 	"github.com/getlantern/sing-box-extensions/option"
 	"github.com/getlantern/sing-box-extensions/transport/amnezia"
 )
 
 func RegisterEndpoint(registry *endpoint.Registry) {
-	endpoint.Register[option.AmneziaWGEndpointOptions](registry, C.TypeWireGuard, NewEndpoint)
+	endpoint.Register[option.AmneziaEndpointOptions](registry, constant.TypeAmnezia, NewEndpoint)
 }
 
 var (
@@ -45,9 +46,9 @@ type Endpoint struct {
 	endpoint       *amnezia.Endpoint
 }
 
-func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.AmneziaWGEndpointOptions) (adapter.Endpoint, error) {
+func NewEndpoint(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.AmneziaEndpointOptions) (adapter.Endpoint, error) {
 	ep := &Endpoint{
-		Adapter:        endpoint.NewAdapterWithDialerOptions(C.TypeWireGuard, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
+		Adapter:        endpoint.NewAdapterWithDialerOptions(constant.TypeAmnezia, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.DialerOptions),
 		ctx:            ctx,
 		router:         router,
 		logger:         logger,
