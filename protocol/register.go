@@ -8,6 +8,7 @@ import (
 
 	"github.com/getlantern/sing-box-extensions/protocol/amnezia"
 	"github.com/getlantern/sing-box-extensions/protocol/group"
+	"github.com/getlantern/sing-box-extensions/protocol/water"
 
 	"github.com/getlantern/sing-box-extensions/protocol/algeneva"
 	"github.com/getlantern/sing-box-extensions/protocol/outline"
@@ -51,6 +52,7 @@ func GetRegistries() (*inbound.Registry, *outbound.Registry, *endpoint.Registry)
 
 func registerInbounds(registry *inbound.Registry) {
 	algeneva.RegisterInbound(registry)
+	water.RegisterInbound(registry)
 }
 
 func registerOutbounds(registry *outbound.Registry) {
@@ -58,6 +60,7 @@ func registerOutbounds(registry *outbound.Registry) {
 	algeneva.RegisterOutbound(registry)
 	outline.RegisterOutbound(registry)
 	amnezia.RegisterOutbound(registry)
+	water.RegisterOutbound(registry)
 
 	// utility outbounds
 	group.RegisterFallback(registry)
