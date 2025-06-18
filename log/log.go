@@ -2,48 +2,42 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
-	sblog "github.com/sagernet/sing-box/log"
+	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing/common"
-	F "github.com/sagernet/sing/common/format"
 	"github.com/sagernet/sing/common/observable"
 )
 
-// Factory extends [sblog.ObservableFactory] and provides methods add attributes to the [slog.Logger].
 type Factory interface {
-	sblog.ObservableFactory
-	NewLogger(tag string) sblog.ContextLogger
-	LoggerFor(name string) SLogger
+	log.ObservableFactory
+	SlogHandler() slog.Handler
 }
 
 type factory struct {
 	ctx     context.Context
 	handler slog.Handler
-	level   sblog.Level
-	group   string
 
-	subscriber *observable.Subscriber[sblog.Entry]
-	observer   *observable.Observer[sblog.Entry]
+	subscriber *observable.Subscriber[log.Entry]
+	observer   *observable.Observer[log.Entry]
 }
 
-// NewFactory creates a new [Factory] instance with the provided context, logger, and logging level.
+// NewFactory wraps a [slog.Handler] into a [Factory] implementation and is meant to be used with sing-box.
 func NewFactory(
 	ctx context.Context,
 	handler slog.Handler,
-	level sblog.Level,
 ) Factory {
 	factory := &factory{
 		ctx:        ctx,
 		handler:    handler,
-		level:      level,
-		subscriber: observable.NewSubscriber[sblog.Entry](128),
+		subscriber: observable.NewSubscriber[log.Entry](128),
 	}
-	factory.observer = observable.NewObserver[sblog.Entry](factory.subscriber, 64)
+	factory.observer = observable.NewObserver[log.Entry](factory.subscriber, 64)
 	return factory
 }
 
@@ -61,43 +55,29 @@ func (f *factory) Close() error {
 }
 
 // Level returns the current logging level of the factory.
-func (f *factory) Level() sblog.Level {
-	return f.level
-}
-
-// SetLevel implements the [Factory] interface. [slog.Logger] does not support dynamic level changes,
-// so this method is a no-op.
-func (f *factory) SetLevel(level sblog.Level) {}
-
-// Logger returns a [sblog.ContextLogger] that can be used to log messages.
-func (f *factory) Logger() sblog.ContextLogger {
-	return &slogLogger{factory: f, tag: ""}
-}
-
-// NewLogger implements the [Factory] interface and returns a [sblog.ContextLogger] with the provided
-// tag.
-//
-// This is different from [LoggerFor], which uses the key "group" instead, as this is used by sing-box
-// to create loggers for outbounds, inbounds, etc.
-func (f *factory) NewLogger(tag string) sblog.ContextLogger {
-	attrs := []slog.Attr{slog.String("tag", tag)}
-	if f.group != "" {
-		attrs = append(attrs, slog.String("group", f.group))
+func (f *factory) Level() log.Level {
+	for i := log.LevelTrace; i >= log.LevelPanic; i-- {
+		if f.handler.Enabled(f.ctx, toSLevel(i)) {
+			return i
+		}
 	}
+	return log.LevelTrace
+}
+
+// SetLevel implements the [Factory] interface. [slog.Handler] does not support dynamic level changes,
+// so this method is a no-op.
+func (f *factory) SetLevel(level log.Level) {}
+
+// Logger implements the [Factory] interface and returns a [log.ContextLogger] with an empty tag.
+func (f *factory) Logger() log.ContextLogger {
+	return &slogLogger{factory: f}
+}
+
+// NewLogger implements the [Factory] interface and returns a [log.ContextLogger] with the provided
+// tag.
+func (f *factory) NewLogger(tag string) log.ContextLogger {
 	nf := f.clone()
 	return &slogLogger{factory: nf, tag: tag}
-}
-
-// LoggerFor returns a [SLogger] for the given group. If [NewLogger] was previously called, the
-// tag will not be retained.
-//
-// For example:
-// `logger := factory.LoggerFor("sing-box")`
-// => time=2025-06-17T17:14:24.204-07:00 level=TRACE msg=message group=sing-box
-func (f *factory) LoggerFor(group string) SLogger {
-	nf := f.clone()
-	nf.group = group
-	return &slogLogger{factory: nf}
 }
 
 func (f *factory) clone() *factory {
@@ -105,22 +85,25 @@ func (f *factory) clone() *factory {
 	return &nf
 }
 
-// Subscribe implements the [sblog.ObservableFactory] interface and returns a subscription to sblog entries.
-func (f *factory) Subscribe() (subscription observable.Subscription[sblog.Entry], done <-chan struct{}, err error) {
+// Subscribe implements the [log.ObservableFactory] interface and returns a subscription to log entries.
+func (f *factory) Subscribe() (subscription observable.Subscription[log.Entry], done <-chan struct{}, err error) {
 	return f.observer.Subscribe()
 }
 
-// UnSubscribe implements the [sblog.ObservableFactory] interface and unsubscribes from sblog entries.
-func (f *factory) UnSubscribe(sub observable.Subscription[sblog.Entry]) {
+// UnSubscribe implements the [log.ObservableFactory] interface and unsubscribes from log entries.
+func (f *factory) UnSubscribe(sub observable.Subscription[log.Entry]) {
 	f.observer.UnSubscribe(sub)
 }
 
-// SLogger is an interface that extends [sblog.ContextLogger] and provides access to the underlying
-// [slog.Handler].
+// SlogHandler returns the underlying [slog.Handler] used by this factory.
+func (f *factory) SlogHandler() slog.Handler {
+	return f.handler
+}
+
+// SLogger is an interface that writes logs to a [slog.Handler] and is compatible with sing-box
 type SLogger interface {
-	Factory
-	sblog.ContextLogger
-	SlogHandler() slog.Handler
+	log.Factory
+	log.ContextLogger
 }
 
 var _ SLogger = (*slogLogger)(nil)
@@ -130,22 +113,29 @@ type slogLogger struct {
 	tag string
 }
 
-func (l *slogLogger) log(ctx context.Context, level sblog.Level, args []any) string {
+func (l *slogLogger) Log(ctx context.Context, level log.Level, args ...any) string {
+	if len(args) == 0 {
+		return ""
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return l.log(ctx, level, args)
+}
+
+func (l *slogLogger) log(ctx context.Context, level log.Level, args []any) string {
 	slevel := toSLevel(level)
 	if !l.handler.Enabled(ctx, slevel) {
 		return ""
 	}
 
-	message := F.ToString(args...)
-	args = []any{}
-	if l.group != "" {
-		args = append(args, slog.String("group", l.group))
-	}
+	message := fmt.Sprint(args...)
+	args = []any{slog.String("group", "SingBox")}
 	if l.tag != "" {
 		args = append(args, slog.String("tag", l.tag))
 	}
 	if ctx != nil {
-		if id, hasId := sblog.IDFromContext(ctx); hasId {
+		if id, hasId := log.IDFromContext(ctx); hasId {
 			args = append(args, slog.Duration("duration", time.Since(id.CreatedAt)))
 		}
 	}
@@ -159,12 +149,10 @@ func (l *slogLogger) log(ctx context.Context, level sblog.Level, args []any) str
 	r.Add(args...)
 	_ = l.SlogHandler().Handle(ctx, r)
 
-	l.subscriber.Emit(sblog.Entry{level, message})
+	if l.subscriber != nil {
+		l.subscriber.Emit(log.Entry{level, message})
+	}
 	return message
-}
-
-func (l *slogLogger) SlogHandler() slog.Handler {
-	return l.handler
 }
 
 func (l *slogLogger) Trace(args ...any) {
@@ -196,55 +184,57 @@ func (l *slogLogger) Panic(args ...any) {
 }
 
 func (l *slogLogger) TraceContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelTrace, args)
+	l.log(ctx, log.LevelTrace, args)
 }
 
 func (l *slogLogger) DebugContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelDebug, args)
+	l.log(ctx, log.LevelDebug, args)
 }
 
 func (l *slogLogger) InfoContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelInfo, args)
+	l.log(ctx, log.LevelInfo, args)
 }
 
 func (l *slogLogger) WarnContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelWarn, args)
+	l.log(ctx, log.LevelWarn, args)
 }
 
 func (l *slogLogger) ErrorContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelError, args)
+	l.log(ctx, log.LevelError, args)
 }
 
 func (l *slogLogger) FatalContext(ctx context.Context, args ...any) {
-	l.log(ctx, sblog.LevelFatal, args)
+	l.log(ctx, log.LevelFatal, args)
 	os.Exit(1)
 }
 
 func (l *slogLogger) PanicContext(ctx context.Context, args ...any) {
-	message := l.log(ctx, sblog.LevelPanic, args)
+	message := l.log(ctx, log.LevelPanic, args)
 	panic(message)
 }
 
-// SBLevelToString converts a [sblog.Level] to its string representation.
-func SBLevelToString(l sblog.Level) string {
-	return strings.ToUpper(sblog.FormatLevel(sblog.Level(l)))
+// SBLevelToString converts a [log.Level] to its string representation.
+func SBLevelToString(l log.Level) string {
+	return strings.ToUpper(log.FormatLevel(log.Level(l)))
 }
 
-func toSLevel(lvl sblog.Level) slog.Level {
+// toSLevel converts a [log.Level] to a [slog.Level]. This is necessary because slog and sing-box
+// use different level representations.
+func toSLevel(lvl log.Level) slog.Level {
 	switch lvl {
-	case sblog.LevelTrace:
+	case log.LevelTrace:
 		return slog.LevelDebug - 1 // slog does not have a separate trace level, so we use debug-1.
-	case sblog.LevelDebug:
+	case log.LevelDebug:
 		return slog.LevelDebug
-	case sblog.LevelInfo:
+	case log.LevelInfo:
 		return slog.LevelInfo
-	case sblog.LevelWarn:
+	case log.LevelWarn:
 		return slog.LevelWarn
-	case sblog.LevelError:
+	case log.LevelError:
 		return slog.LevelError
-	case sblog.LevelFatal:
+	case log.LevelFatal:
 		return slog.LevelError + 1 // slog does not have a separate fatal level, so we use error+1.
-	case sblog.LevelPanic:
+	case log.LevelPanic:
 		return slog.LevelError + 2 // slog does not have a separate panic level, so we use error+2.
 	default:
 		return slog.LevelDebug // Default to debug if the level is unknown.
