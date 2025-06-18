@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/sagernet/sing-box/log"
@@ -63,7 +62,8 @@ func TestLevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			var buf bytes.Buffer
+			handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
 				Level: toSLevel(tt.level),
 			})
 			f := &factory{handler: handler}
