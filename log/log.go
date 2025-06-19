@@ -102,7 +102,7 @@ func (f *factory) SlogHandler() slog.Handler {
 
 // SLogger is an interface that writes logs to a [slog.Handler] and is compatible with sing-box
 type SLogger interface {
-	log.Factory
+	Factory
 	log.ContextLogger
 }
 
