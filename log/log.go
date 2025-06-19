@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ func NewFactory(
 ) Factory {
 	factory := &factory{
 		ctx:        ctx,
-		handler:    handler,
+		handler:    handler.WithAttrs([]slog.Attr{slog.String("module", "sing-box")}),
 		subscriber: observable.NewSubscriber[log.Entry](128),
 	}
 	factory.observer = observable.NewObserver[log.Entry](factory.subscriber, 64)
@@ -129,8 +130,15 @@ func (l *slogLogger) log(ctx context.Context, level log.Level, args []any) strin
 		return ""
 	}
 
-	message := fmt.Sprint(args...)
-	args = []any{slog.String("group", "SingBox")}
+	for i, arg := range args {
+		if s, ok := arg.(string); ok {
+			args[i] = strings.TrimSpace(s)
+		}
+	}
+
+	format := strings.Join(slices.Repeat([]string{"%v"}, len(args)), " ")
+	message := fmt.Sprintf(format, args...)
+	args = []any{}
 	if l.tag != "" {
 		args = append(args, slog.String("tag", l.tag))
 	}
