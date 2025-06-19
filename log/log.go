@@ -29,7 +29,6 @@ type factory struct {
 
 // NewFactory wraps a [slog.Handler] into a [Factory] implementation and is meant to be used with sing-box.
 func NewFactory(
-	ctx context.Context,
 	handler slog.Handler,
 ) Factory {
 	factory := &factory{
