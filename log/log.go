@@ -35,7 +35,7 @@ func NewFactory(
 ) Factory {
 	factory := &factory{
 		ctx:        ctx,
-		handler:    handler.WithAttrs([]slog.Attr{slog.String("module", "sing-box")}),
+		handler:    handler,
 		subscriber: observable.NewSubscriber[log.Entry](128),
 	}
 	factory.observer = observable.NewObserver[log.Entry](factory.subscriber, 64)
