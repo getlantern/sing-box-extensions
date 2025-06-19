@@ -21,7 +21,6 @@ type Factory interface {
 }
 
 type factory struct {
-	ctx     context.Context
 	handler slog.Handler
 
 	subscriber *observable.Subscriber[log.Entry]
@@ -34,7 +33,6 @@ func NewFactory(
 	handler slog.Handler,
 ) Factory {
 	factory := &factory{
-		ctx:        ctx,
 		handler:    handler,
 		subscriber: observable.NewSubscriber[log.Entry](128),
 	}
@@ -58,7 +56,7 @@ func (f *factory) Close() error {
 // Level returns the current logging level of the factory.
 func (f *factory) Level() log.Level {
 	for i := log.LevelTrace; i >= log.LevelPanic; i-- {
-		if f.handler.Enabled(f.ctx, toSLevel(i)) {
+		if f.handler.Enabled(context.Background(), toSLevel(i)) {
 			return i
 		}
 	}
