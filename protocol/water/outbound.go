@@ -2,12 +2,12 @@ package water
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
-	"net/netip"
+	"strconv"
+	"sync"
 	"time"
 
 	waterDownloader "github.com/getlantern/lantern-water/downloader"
@@ -37,9 +37,12 @@ func RegisterOutbound(registry *outbound.Registry) {
 // Outbound represents a WATER outbound adapter.
 type Outbound struct {
 	outbound.Adapter
-	logger      logger.ContextLogger
-	waterDialer water.Dialer
-	serverAddr  string
+	logger                     logger.ContextLogger
+	serverAddr                 string
+	skipHandshake              bool
+	dialerConfig               *water.Config
+	transportModuleConfig      map[string]any
+	transportModuleConfigMutex *sync.Mutex
 }
 
 // NewOutbound creates a new WATER outbound adapter.
@@ -73,17 +76,13 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	if err != nil {
 		return nil, err
 	}
+	serverAddr := options.ServerOptions.Build()
 
 	cfg := &water.Config{
 		TransportModuleBin: b,
 		OverrideLogger:     slogLogger,
 		NetworkDialerFunc: func(network, address string) (net.Conn, error) {
-			addr, err := netip.ParseAddrPort(address)
-			if err != nil {
-				return nil, err
-			}
-
-			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, M.SocksaddrFromNetIP(addr))
+			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, serverAddr)
 		},
 	}
 
