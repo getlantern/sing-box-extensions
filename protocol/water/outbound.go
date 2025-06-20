@@ -86,8 +86,30 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		},
 	}
 
-	if options.Config != nil {
-		transportModuleConfig, err := json.MarshalContext(ctx, options.Config)
+	outbound := &Outbound{
+		Adapter:                    outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
+		logger:                     logger,
+		serverAddr:                 serverAddr.String(),
+		dialerConfig:               cfg,
+		transportModuleConfig:      options.Config,
+		transportModuleConfigMutex: new(sync.Mutex),
+		skipHandshake:              options.SkipHandshake,
+	}
+
+	return outbound, nil
+}
+
+func (o *Outbound) newDialer(ctx context.Context, destination M.Socksaddr) (water.Dialer, error) {
+	cfg := o.dialerConfig.Clone()
+	if o.transportModuleConfig != nil {
+		o.transportModuleConfigMutex.Lock()
+		defer o.transportModuleConfigMutex.Unlock()
+
+		// currently this is the only way to share the destination with the WATER module.
+		addr := destination.AddrPort()
+		o.transportModuleConfig["remote_addr"] = addr.Addr().String()
+		o.transportModuleConfig["remote_port"] = strconv.Itoa(int(addr.Port()))
+		transportModuleConfig, err := json.MarshalContext(ctx, o.transportModuleConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -95,20 +117,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		cfg.TransportModuleConfig = water.TransportModuleConfigFromBytes(transportModuleConfig)
 	}
 
-	waterDialer, err := water.NewDialerWithContext(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	serverAddr := options.ServerOptions.Build()
-
-	outbound := &Outbound{
-		Adapter:     outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
-		logger:      logger,
-		waterDialer: waterDialer,
-		serverAddr:  fmt.Sprintf("%s:%d", serverAddr.TCPAddr().IP.String(), serverAddr.Port),
-	}
-
-	return outbound, nil
+	return water.NewDialerWithContext(ctx, cfg)
 }
 
 // DialContext dials a connection to the specified network and destination.
@@ -117,12 +126,17 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	conn, err := o.waterDialer.DialContext(ctx, network, o.serverAddr)
+	dialer, err := o.newDialer(ctx, destination)
 	if err != nil {
 		return nil, err
 	}
 
-	return waterTransport.NewWATERConnection(conn, destination), nil
+	conn, err := dialer.DialContext(context.Background(), network, "localhost:0")
+	if err != nil {
+		return nil, err
+	}
+
+	return waterTransport.NewWATERConnection(conn, destination, o.skipHandshake), nil
 }
 
 // ListenPacket is not implemented
