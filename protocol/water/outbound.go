@@ -2,12 +2,12 @@ package water
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
-	"net/netip"
+	"strconv"
+	"sync"
 	"time"
 
 	waterDownloader "github.com/getlantern/lantern-water/downloader"
@@ -37,9 +37,12 @@ func RegisterOutbound(registry *outbound.Registry) {
 // Outbound represents a WATER outbound adapter.
 type Outbound struct {
 	outbound.Adapter
-	logger      logger.ContextLogger
-	waterDialer water.Dialer
-	serverAddr  string
+	logger                     logger.ContextLogger
+	serverAddr                 string
+	skipHandshake              bool
+	dialerConfig               *water.Config
+	transportModuleConfig      map[string]any
+	transportModuleConfigMutex sync.Mutex
 }
 
 // NewOutbound creates a new WATER outbound adapter.
@@ -73,22 +76,40 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	if err != nil {
 		return nil, err
 	}
+	serverAddr := options.ServerOptions.Build()
 
 	cfg := &water.Config{
 		TransportModuleBin: b,
 		OverrideLogger:     slogLogger,
 		NetworkDialerFunc: func(network, address string) (net.Conn, error) {
-			addr, err := netip.ParseAddrPort(address)
-			if err != nil {
-				return nil, err
-			}
-
-			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, M.SocksaddrFromNetIP(addr))
+			return outboundDialer.DialContext(log.ContextWithNewID(ctx), network, serverAddr)
 		},
 	}
 
-	if options.Config != nil {
-		transportModuleConfig, err := json.MarshalContext(ctx, options.Config)
+	outbound := &Outbound{
+		Adapter:                    outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
+		logger:                     logger,
+		serverAddr:                 serverAddr.String(),
+		dialerConfig:               cfg,
+		transportModuleConfig:      options.Config,
+		transportModuleConfigMutex: sync.Mutex{},
+		skipHandshake:              options.SkipHandshake,
+	}
+
+	return outbound, nil
+}
+
+func (o *Outbound) newDialer(ctx context.Context, destination M.Socksaddr) (water.Dialer, error) {
+	cfg := o.dialerConfig.Clone()
+	if o.transportModuleConfig != nil {
+		o.transportModuleConfigMutex.Lock()
+		defer o.transportModuleConfigMutex.Unlock()
+
+		// currently this is the only way to share the destination with the WATER module.
+		addr := destination.AddrPort()
+		o.transportModuleConfig["remote_addr"] = addr.Addr().String()
+		o.transportModuleConfig["remote_port"] = strconv.Itoa(int(addr.Port()))
+		transportModuleConfig, err := json.MarshalContext(ctx, o.transportModuleConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -96,20 +117,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		cfg.TransportModuleConfig = water.TransportModuleConfigFromBytes(transportModuleConfig)
 	}
 
-	waterDialer, err := water.NewDialerWithContext(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	serverAddr := options.ServerOptions.Build()
-
-	outbound := &Outbound{
-		Adapter:     outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
-		logger:      logger,
-		waterDialer: waterDialer,
-		serverAddr:  fmt.Sprintf("%s:%d", serverAddr.TCPAddr().IP.String(), serverAddr.Port),
-	}
-
-	return outbound, nil
+	return water.NewDialerWithContext(ctx, cfg)
 }
 
 // DialContext dials a connection to the specified network and destination.
@@ -118,12 +126,17 @@ func (o *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
 
-	conn, err := o.waterDialer.DialContext(ctx, network, o.serverAddr)
+	dialer, err := o.newDialer(ctx, destination)
 	if err != nil {
 		return nil, err
 	}
 
-	return waterTransport.NewWATERConnection(conn, destination), nil
+	conn, err := dialer.DialContext(context.Background(), network, "localhost:0")
+	if err != nil {
+		return nil, err
+	}
+
+	return waterTransport.NewWATERConnection(conn, destination, o.skipHandshake), nil
 }
 
 // ListenPacket is not implemented

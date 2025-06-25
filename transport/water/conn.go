@@ -18,11 +18,11 @@ type WATERConn struct {
 
 // NewWATERConnection creates a new WATERConn instance with the given
 // net.Conn and destination address.
-func NewWATERConnection(conn net.Conn, destination M.Socksaddr) *WATERConn {
+func NewWATERConnection(conn net.Conn, destination M.Socksaddr, skipHandshake bool) *WATERConn {
 	return &WATERConn{
 		Conn:        conn,
 		destination: destination,
-		handshake:   false,
+		handshake:   skipHandshake,
 		mu:          new(sync.Mutex),
 	}
 }
