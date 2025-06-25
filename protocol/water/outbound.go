@@ -42,7 +42,7 @@ type Outbound struct {
 	skipHandshake              bool
 	dialerConfig               *water.Config
 	transportModuleConfig      map[string]any
-	transportModuleConfigMutex *sync.Mutex
+	transportModuleConfigMutex sync.Mutex
 }
 
 // NewOutbound creates a new WATER outbound adapter.
@@ -92,7 +92,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		serverAddr:                 serverAddr.String(),
 		dialerConfig:               cfg,
 		transportModuleConfig:      options.Config,
-		transportModuleConfigMutex: new(sync.Mutex),
+		transportModuleConfigMutex: sync.Mutex{},
 		skipHandshake:              options.SkipHandshake,
 	}
 
