@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	maxUDPPacketSize  = 65507 // theoretical maximum UDP packet size
-	keepAliveInterval = 20 * time.Second
+	maxUDPPacketSize     = 65507 // theoretical maximum UDP packet size
+	keepAliveInterval    = 20 * time.Second
+	addressHeaderReserve = 64 // extra space for header addresses
 )
 
 // keep-alive packet
@@ -169,10 +170,10 @@ func (h *UDPOverQUICHandler) handleUDPPacket() {
 			// Start routing this session
 			go h.routeUDPSession(session)
 		}
-		h.sessionsMux.Unlock()
 
 		// Update last active time
 		session.lastActive = time.Now()
+		h.sessionsMux.Unlock()
 
 		// Send packet to the session
 		packet := &UDPPacket{
@@ -270,7 +271,7 @@ func (h *UDPOverQUICHandler) unpackUDPPacket(data []byte) (source, dest net.Addr
 
 func (h *UDPOverQUICHandler) packUDPPacket(source, dest net.Addr, payload []byte) ([]byte, error) {
 	// Create the packet with embedded addresses for sending over QUIC
-	writer := buf.NewSize(len(payload) + 64) // Extra space for addresses
+	writer := buf.NewSize(len(payload) + addressHeaderReserve)
 	defer writer.Release()
 
 	// Write source address (local address)
@@ -477,14 +478,14 @@ func (c *UDPSessionConn) SetWriteDeadline(t time.Time) error {
 
 func (c *UDPSessionConn) getReadDeadlineChannel() <-chan time.Time {
 	if c.readDeadline.IsZero() {
-		return make(chan time.Time) // Never fires
+		return nil // Never fires
 	}
 	return time.After(time.Until(c.readDeadline))
 }
 
 func (c *UDPSessionConn) getWriteDeadlineChannel() <-chan time.Time {
 	if c.writeDeadline.IsZero() {
-		return make(chan time.Time) // Never fires
+		return nil // Never fires
 	}
 	return time.After(time.Until(c.writeDeadline))
 }
@@ -616,7 +617,7 @@ func (c *ClientUDPConn) SetWriteDeadline(t time.Time) error {
 
 func (c *ClientUDPConn) getReadDeadlineChannel() <-chan time.Time {
 	if c.readDeadline.IsZero() {
-		return make(chan time.Time) // Never fires
+		return nil // Never fires
 	}
 	return time.After(time.Until(c.readDeadline))
 }

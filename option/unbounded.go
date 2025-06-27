@@ -3,7 +3,6 @@ package option
 import "github.com/sagernet/sing-box/option"
 
 type UnboundedOptions struct {
-	WebRTCTag  string `json:"webrtc_tag"` // might need to separate this tag for inbound (peer) and outbound (client)
 	Freddie    string `json:"freddie"`
 	Netstated  string `json:"netstated"`
 	ServerName string `json:"server_name"`
