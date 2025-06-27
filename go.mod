@@ -19,7 +19,7 @@ require (
 	github.com/getlantern/algeneva v0.0.0-20250307163401-1824e7b54f52
 	github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8
 	github.com/gobwas/ws v1.4.0
-	github.com/refraction-networking/water v0.7.0-alpha
+	github.com/refraction-networking/water v0.7.1-alpha
 	github.com/sagernet/sing v0.6.10
 	github.com/sagernet/sing-box v1.11.5
 	github.com/sagernet/sing-dns v0.4.5
@@ -149,7 +149,7 @@ require (
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tetratelabs/wazero v1.7.1 // indirect
+	github.com/tetratelabs/wazero v1.7.3 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
