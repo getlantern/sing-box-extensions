@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/sagernet/sing/common/logger"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/network"
+	"github.com/tetratelabs/wazero"
 )
 
 // RegisterOutbound registers the WATER outbound adapter with the given registry.
@@ -52,8 +54,22 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, err
 	}
 
+	if options.WASMStorageDir == "" {
+		return nil, E.New("provided an empty storage directory for WASM files")
+	}
+
+	if options.WazeroCompilationCacheDir == "" {
+		return nil, E.New("provided an empty storage directory for wazero compilation cache")
+	}
+
+	for _, dir := range []string{options.WASMStorageDir, options.WazeroCompilationCacheDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, err
+		}
+	}
+
 	slogLogger := slog.New(L.NewLogHandler(logger))
-	vc := waterVC.NewWaterVersionControl(options.Dir, slogLogger)
+	vc := waterVC.NewWaterVersionControl(options.WASMStorageDir, slogLogger)
 	d, err := waterDownloader.NewWASMDownloader(options.WASMAvailableAt, &http.Client{Timeout: timeout})
 	if err != nil {
 		return nil, E.New("failed to create WASM downloader", err)
@@ -70,13 +86,20 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, err
 	}
 
-	logger.DebugContext(ctx, "downloaded WASM with len: ", len(b), " bytes")
-
 	outboundDialer, err := dialer.New(ctx, options.DialerOptions)
 	if err != nil {
 		return nil, err
 	}
 	serverAddr := options.ServerOptions.Build()
+
+	// We're creating the compilation cache dir and setting the global value so during runtime
+	// it won't need to create one at a temp directory
+	compilationCache, err := wazero.NewCompilationCacheWithDir(options.WazeroCompilationCacheDir)
+	if err != nil {
+		return nil, err
+	}
+
+	water.SetGlobalCompilationCache(compilationCache)
 
 	cfg := &water.Config{
 		TransportModuleBin: b,
