@@ -39,12 +39,12 @@ func RegisterOutbound(registry *outbound.Registry) {
 // Outbound represents a WATER outbound adapter.
 type Outbound struct {
 	outbound.Adapter
-	logger                     logger.ContextLogger
-	serverAddr                 string
-	skipHandshake              bool
-	dialerConfig               *water.Config
-	transportModuleConfig      map[string]any
-	transportModuleConfigMutex sync.Mutex
+	logger                logger.ContextLogger
+	serverAddr            string
+	skipHandshake         bool
+	dialerConfig          *water.Config
+	transportModuleConfig map[string]any
+	dialMutex             sync.Mutex
 }
 
 // NewOutbound creates a new WATER outbound adapter.
@@ -110,13 +110,13 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	}
 
 	outbound := &Outbound{
-		Adapter:                    outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
-		logger:                     logger,
-		serverAddr:                 serverAddr.String(),
-		dialerConfig:               cfg,
-		transportModuleConfig:      options.Config,
-		transportModuleConfigMutex: sync.Mutex{},
-		skipHandshake:              options.SkipHandshake,
+		Adapter:               outbound.NewAdapterWithDialerOptions(constant.TypeWATER, tag, []string{network.NetworkTCP}, options.DialerOptions),
+		logger:                logger,
+		serverAddr:            serverAddr.String(),
+		dialerConfig:          cfg,
+		transportModuleConfig: options.Config,
+		dialMutex:             sync.Mutex{},
+		skipHandshake:         options.SkipHandshake,
 	}
 
 	return outbound, nil
@@ -124,10 +124,8 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 
 func (o *Outbound) newDialer(ctx context.Context, destination M.Socksaddr) (water.Dialer, error) {
 	cfg := o.dialerConfig.Clone()
-	if o.transportModuleConfig != nil {
-		o.transportModuleConfigMutex.Lock()
-		defer o.transportModuleConfigMutex.Unlock()
 
+	if o.transportModuleConfig != nil {
 		// currently this is the only way to share the destination with the WATER module.
 		addr := destination.AddrPort()
 		o.transportModuleConfig["remote_addr"] = addr.Addr().String()
@@ -145,6 +143,8 @@ func (o *Outbound) newDialer(ctx context.Context, destination M.Socksaddr) (wate
 
 // DialContext dials a connection to the specified network and destination.
 func (o *Outbound) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
+	o.dialMutex.Lock()
+	defer o.dialMutex.Lock()
 	ctx, metadata := adapter.ExtendContext(ctx)
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
