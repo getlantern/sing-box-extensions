@@ -144,7 +144,7 @@ func (o *Outbound) newDialer(ctx context.Context, destination M.Socksaddr) (wate
 // DialContext dials a connection to the specified network and destination.
 func (o *Outbound) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
 	o.dialMutex.Lock()
-	defer o.dialMutex.Lock()
+	defer o.dialMutex.Unlock()
 	ctx, metadata := adapter.ExtendContext(ctx)
 	metadata.Outbound = o.Tag()
 	metadata.Destination = destination
