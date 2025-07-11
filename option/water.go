@@ -30,7 +30,7 @@ type WATEROutboundOptions struct {
 	DownloadTimeout string `json:"download_timeout"`
 	// WASMStorageDir specifies which directory should store the WASM files
 	WASMStorageDir string `json:"water_dir"`
-	// WazeroCompilationCacheDir specifies which directore should be used for storing
+	// WazeroCompilationCacheDir specifies which directory should be used for storing
 	// Wazero cache
 	WazeroCompilationCacheDir string `json:"wazero_compilation_cache_dir"`
 	// Config is a optional config that will be sent to the WASM file.
