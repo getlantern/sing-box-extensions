@@ -228,7 +228,7 @@ func SBLevelToString(l log.Level) string {
 func toSLevel(lvl log.Level) slog.Level {
 	switch lvl {
 	case log.LevelTrace:
-		return slog.LevelDebug - 1 // slog does not have a separate trace level, so we use debug-1.
+		return slog.LevelDebug - 4 // slog does not have a separate trace level, so we use debug-4.
 	case log.LevelDebug:
 		return slog.LevelDebug
 	case log.LevelInfo:
@@ -238,9 +238,9 @@ func toSLevel(lvl log.Level) slog.Level {
 	case log.LevelError:
 		return slog.LevelError
 	case log.LevelFatal:
-		return slog.LevelError + 1 // slog does not have a separate fatal level, so we use error+1.
+		return slog.LevelError + 4 // slog does not have a separate fatal level, so we use error+4.
 	case log.LevelPanic:
-		return slog.LevelError + 2 // slog does not have a separate panic level, so we use error+2.
+		return slog.LevelError + 8 // slog does not have a separate panic level, so we use error+8.
 	default:
 		return slog.LevelDebug // Default to debug if the level is unknown.
 	}
