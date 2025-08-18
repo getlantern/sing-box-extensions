@@ -1,7 +1,7 @@
 FROM alpine:edge
 
 # Set the timezone and install CA certificates
-RUN apk --no-cache add ca-certificates tzdata nftables
+RUN apk --no-cache add ca-certificates tzdata nftables wireguard-tools
 
 COPY sing-box-extensions /sing-box-extensions
 
