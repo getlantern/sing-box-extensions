@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -20,6 +21,7 @@ import (
 	"github.com/sagernet/sing/service/pause"
 	"github.com/sagernet/wireguard-go/conn"
 	"github.com/sagernet/wireguard-go/device"
+	"github.com/sagernet/wireguard-go/ipc"
 
 	"go4.org/netipx"
 )
@@ -171,6 +173,12 @@ func (e *Endpoint) Start(resolve bool) error {
 	} else if resolve {
 		return nil
 	}
+
+	fileUAPI, uapiErr := ipc.UAPIOpen(e.options.Name)
+	if uapiErr != nil {
+		return fmt.Errorf("failed to open UAPI socket for %s: %w", e.options.Name, uapiErr)
+	}
+
 	var bind conn.Bind
 	wgListener, isWgListener := e.options.Dialer.(conn.Listener)
 	if isWgListener {
@@ -208,6 +216,32 @@ func (e *Endpoint) Start(resolve bool) error {
 		},
 	}
 	wgDevice := device.NewDevice(e.options.Context, e.tunDevice, bind, logger, e.options.Workers)
+
+	uapi, err := ipc.UAPIListen(e.options.Name, fileUAPI)
+	if err != nil {
+		return fmt.Errorf("failed to listen on UAPI socket: %v", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-e.options.Context.Done():
+				uapi.Close()
+				return
+			default:
+				conn, err := uapi.Accept()
+				if err != nil {
+					if errors.Is(err, net.ErrClosed) {
+						return
+					}
+					e.options.Logger.Error(E.Cause(err, "uapi accept error"))
+					continue // any other accept error, just continue
+				}
+				go wgDevice.IpcHandle(conn)
+			}
+		}
+	}()
+
 	e.tunDevice.SetDevice(wgDevice)
 	ipcConf := e.ipcConf
 	for _, peer := range e.peers {
