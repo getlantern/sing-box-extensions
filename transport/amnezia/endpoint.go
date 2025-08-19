@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -173,11 +174,9 @@ func (e *Endpoint) Start(resolve bool) error {
 		return nil
 	}
 
-	fileUAPI, uapiErr := func() (*os.File, error) {
-		return ipc.UAPIOpen(e.options.Name) // should be something like wg0
-	}()
+	fileUAPI, uapiErr := ipc.UAPIOpen(e.options.Name)
 	if uapiErr != nil {
-		return fmt.Errorf("UAPI listen error: %v", uapiErr)
+		return fmt.Errorf("failed to open UAPI socket for %s: %w", e.options.Name, uapiErr)
 	}
 
 	var bind conn.Bind
@@ -220,16 +219,26 @@ func (e *Endpoint) Start(resolve bool) error {
 
 	uapi, err := ipc.UAPIListen(e.options.Name, fileUAPI)
 	if err != nil {
-		return fmt.Errorf("failed to listen on uapi socket: %v", err)
+		return fmt.Errorf("failed to listen on UAPI socket: %v", err)
 	}
 
 	go func() {
 		for {
-			conn, err := uapi.Accept()
-			if err != nil {
+			select {
+			case <-e.options.Context.Done():
+				uapi.Close()
 				return
+			default:
+				conn, err := uapi.Accept()
+				if err != nil {
+					if errors.Is(err, net.ErrClosed) {
+						return
+					}
+					e.options.Logger.Error(E.Cause(err, "uapi accept error"))
+					continue // any other accept error, just continue
+				}
+				go wgDevice.IpcHandle(conn)
 			}
-			go wgDevice.IpcHandle(conn)
 		}
 	}()
 
