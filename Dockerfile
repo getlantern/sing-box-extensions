@@ -11,9 +11,10 @@ COPY . .
 RUN CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ GOARCH=$TARGETARCH GOOS=$TARGETOS CGO_ENABLED=1 go build -v \
     -o /usr/local/bin/sing-box-extensions ./cmd/sing-box-extensions
 
-FROM alpine
+FROM debian:bullseye-slim
 
-RUN apk --no-cache add ca-certificates tzdata nftables wireguard-tools
+RUN apt-get update && apt-get install -y ca-certificates tzdata nftables wireguard-tools \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/bin/sing-box-extensions /usr/local/bin/sing-box-extensions
 
