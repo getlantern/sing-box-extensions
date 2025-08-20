@@ -33,19 +33,3 @@ jobs:
     #     run: make test
     #   - name: Build
     #     run: make build
-
-    #   - name: Set up S3cmd cli tool
-    #     uses: s3-actions/s3cmd@v1.1
-    #     with:
-    #       provider: aws # default is linode
-    #       region: "us-west-1"
-    #       access_key: ${{ secrets.S3_ACCESS_KEY }}
-    #       secret_key: ${{ secrets.S3_SECRET_KEY }}
-
-    #   - name: Deploy canary build to S3
-    #     if: github.ref == 'refs/heads/canary'
-    #     run: make BUILD_CANARY=true deploy-canary
-
-    #   - name: Deploy main build to S3
-    #     if: github.ref == 'refs/heads/main'
-    #     run: make deploy
