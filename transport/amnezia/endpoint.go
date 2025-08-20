@@ -176,7 +176,7 @@ func (e *Endpoint) Start(resolve bool) error {
 
 	fileUAPI, uapiErr := ipc.UAPIOpen(e.options.Name)
 	if uapiErr != nil {
-		return fmt.Errorf("failed to open UAPI socket for %s: %w", e.options.Name, uapiErr)
+		return fmt.Errorf("failed to open uapi socket for %s: %w", e.options.Name, uapiErr)
 	}
 
 	var bind conn.Bind
@@ -219,7 +219,7 @@ func (e *Endpoint) Start(resolve bool) error {
 
 	uapi, err := ipc.UAPIListen(e.options.Name, fileUAPI)
 	if err != nil {
-		return fmt.Errorf("failed to listen on UAPI socket: %v", err)
+		return fmt.Errorf("failed to listen on uapi socket: %v", err)
 	}
 
 	go func() {
