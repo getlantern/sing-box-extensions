@@ -1,6 +1,4 @@
 FROM --platform=$BUILDPLATFORM golang:1.23-alpine as builder
-# ARG TARGETARCH=arm64
-# ARG TARGETOS=linux
 ARG TARGETOS TARGETARCH
 
 WORKDIR $GOPATH/src/getlantern/sing-box-extensions/
