@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20250806192132-5d1129b5c1cb
 
-replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250723165106-5aea592c030d
+replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250820161012-d4dd96e95ed6
 
 replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero v1.7.1-w
 
@@ -25,6 +25,7 @@ require (
 	github.com/sagernet/sing-dns v0.4.6
 	github.com/sagernet/wireguard-go v0.0.1-beta.7
 	github.com/stretchr/testify v1.10.0
+	github.com/tetratelabs/wazero v1.7.3
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/metric v1.35.0
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
@@ -59,8 +60,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
 	github.com/blang/vfs v1.0.0 // indirect
 	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8 // indirect
-	github.com/caddyserver/certmagic v0.21.7 // indirect
-	github.com/caddyserver/zerossl v0.1.3 // indirect
+	github.com/caddyserver/certmagic v0.20.0 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cretz/bine v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -100,7 +100,6 @@ require (
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/metacubex/tfo-go v0.0.0-20241231083714-66613d49c422 // indirect
 	github.com/mholt/acmez v1.2.0 // indirect
-	github.com/mholt/acmez/v3 v3.0.1 // indirect
 	github.com/miekg/dns v1.1.63 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.12.0 // indirect
@@ -149,7 +148,6 @@ require (
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tetratelabs/wazero v1.7.3 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
@@ -161,7 +159,6 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.23.0 // indirect
