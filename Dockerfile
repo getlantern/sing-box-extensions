@@ -1,19 +1,29 @@
-FROM --platform=$BUILDPLATFORM golang:1.23-bullseye as builder
+FROM --platform=$BUILDPLATFORM golang:1.24-bullseye as builder
 ARG TARGETOS TARGETARCH
+ARG GOPROXY=""
 
-RUN apt-get update && apt-get install -y \
-    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
+RUN set -ex \
+    && apt-get update \
+	 && apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $GOPATH/src/getlantern/sing-box-extensions/
 COPY . .
 
-RUN CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ GOARCH=$TARGETARCH GOOS=$TARGETOS CGO_ENABLED=1 go build -v \
-    -o /usr/local/bin/sing-box-extensions ./cmd/sing-box-extensions
+ENV CC=aarch64-linux-gnu-gcc
+ENV CXX=aarch64-linux-gnu-g++
+ENV CGO_ENABLED=1
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH  
+RUN set -ex \
+    && go build -v -tags \
+       "with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_acme,with_clash_api" \
+       -o /usr/local/bin/sing-box-extensions ./cmd/sing-box-extensions
 
 FROM debian:bullseye-slim
-
-RUN apt-get update && apt-get install -y ca-certificates tzdata nftables wireguard-tools \
+RUN set -ex \
+    && apt-get update \
+    && apt-get install -y ca-certificates tzdata nftables wireguard-tools \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/bin/sing-box-extensions /usr/local/bin/sing-box-extensions
