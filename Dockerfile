@@ -4,7 +4,7 @@ ARG GOPROXY=""
 
 RUN set -ex \
     && apt-get update \
-	 && apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
+    && apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $GOPATH/src/getlantern/sing-box-extensions/
@@ -14,7 +14,7 @@ ENV CC=aarch64-linux-gnu-gcc
 ENV CXX=aarch64-linux-gnu-g++
 ENV CGO_ENABLED=1
 ENV GOOS=$TARGETOS
-ENV GOARCH=$TARGETARCH  
+ENV GOARCH=$TARGETARCH
 RUN set -ex \
     && go build -v -tags \
        "with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_acme,with_clash_api" \
