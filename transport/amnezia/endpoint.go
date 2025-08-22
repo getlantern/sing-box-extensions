@@ -51,35 +51,35 @@ func NewEndpoint(options EndpointOptions) (*Endpoint, error) {
 		ipcConf += "\nlisten_port=" + F.ToString(options.ListenPort)
 	}
 
-	/*************  ADDED FOR AMNEZIA  *************/
-	if options.JunkPacketCount > 0 {
-		ipcConf += "\njc=" + F.ToString(options.JunkPacketCount)
-	}
-	if options.JunkPacketMinSize > 0 {
-		ipcConf += "\njmin=" + F.ToString(options.JunkPacketMinSize)
-	}
-	if options.JunkPacketMaxSize > 0 {
-		ipcConf += "\njmax=" + F.ToString(options.JunkPacketMaxSize)
-	}
-	if options.InitPacketJunkSize > 0 {
-		ipcConf += "\ns1=" + F.ToString(options.InitPacketJunkSize)
-	}
-	if options.ResponsePacketJunkSize > 0 {
-		ipcConf += "\ns2=" + F.ToString(options.ResponsePacketJunkSize)
-	}
-	if options.InitPacketMagicHeader > 0 {
-		ipcConf += "\nh1=" + F.ToString(options.InitPacketMagicHeader)
-	}
-	if options.ResponsePacketMagicHeader > 0 {
-		ipcConf += "\nh2=" + F.ToString(options.ResponsePacketMagicHeader)
-	}
-	if options.UnderloadPacketMagicHeader > 0 {
-		ipcConf += "\nh3=" + F.ToString(options.UnderloadPacketMagicHeader)
-	}
-	if options.TransportPacketMagicHeader > 0 {
-		ipcConf += "\nh4=" + F.ToString(options.TransportPacketMagicHeader)
-	}
-	/********************  END  ********************/
+	// /*************  ADDED FOR AMNEZIA  *************/
+	// if options.JunkPacketCount > 0 {
+	// 	ipcConf += "\njc=" + F.ToString(options.JunkPacketCount)
+	// }
+	// if options.JunkPacketMinSize > 0 {
+	// 	ipcConf += "\njmin=" + F.ToString(options.JunkPacketMinSize)
+	// }
+	// if options.JunkPacketMaxSize > 0 {
+	// 	ipcConf += "\njmax=" + F.ToString(options.JunkPacketMaxSize)
+	// }
+	// if options.InitPacketJunkSize > 0 {
+	// 	ipcConf += "\ns1=" + F.ToString(options.InitPacketJunkSize)
+	// }
+	// if options.ResponsePacketJunkSize > 0 {
+	// 	ipcConf += "\ns2=" + F.ToString(options.ResponsePacketJunkSize)
+	// }
+	// if options.InitPacketMagicHeader > 0 {
+	// 	ipcConf += "\nh1=" + F.ToString(options.InitPacketMagicHeader)
+	// }
+	// if options.ResponsePacketMagicHeader > 0 {
+	// 	ipcConf += "\nh2=" + F.ToString(options.ResponsePacketMagicHeader)
+	// }
+	// if options.UnderloadPacketMagicHeader > 0 {
+	// 	ipcConf += "\nh3=" + F.ToString(options.UnderloadPacketMagicHeader)
+	// }
+	// if options.TransportPacketMagicHeader > 0 {
+	// 	ipcConf += "\nh4=" + F.ToString(options.TransportPacketMagicHeader)
+	// }
+	// /********************  END  ********************/
 	var peers []peerConfig
 	for peerIndex, rawPeer := range options.Peers {
 		peer := peerConfig{
