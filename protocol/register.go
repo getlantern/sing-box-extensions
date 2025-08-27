@@ -19,6 +19,7 @@ var supportedProtocols = []string{
 	"algeneva",
 	"amnezia",
 	"outline",
+	"selector",
 
 	// sing-box built-in protocols
 	"http",
@@ -64,6 +65,7 @@ func registerOutbounds(registry *outbound.Registry) {
 
 	// utility outbounds
 	group.RegisterFallback(registry)
+	group.RegisterSelector(registry)
 }
 
 func registerEndpoints(registry *endpoint.Registry) {
