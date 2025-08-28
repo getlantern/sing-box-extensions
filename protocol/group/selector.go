@@ -2,6 +2,7 @@ package group
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -32,8 +33,14 @@ func NewSelector(ctx context.Context, router adapter.Router, logger log.ContextL
 	if err != nil {
 		return nil, err
 	}
-
-	return &Selector{outbound.(*group.Selector)}, nil
+	switch o := outbound.(type) {
+	case *group.Selector:
+		return &Selector{o}, nil
+	case *Selector:
+		return o, nil
+	default:
+		return nil, fmt.Errorf("unexpected outbound type: %T", outbound)
+	}
 }
 
 func (s *Selector) DialContext(ctx context.Context, network string, destination metadata.Socksaddr) (net.Conn, error) {

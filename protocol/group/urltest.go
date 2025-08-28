@@ -2,6 +2,7 @@ package group
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -29,7 +30,14 @@ func NewURLTest(ctx context.Context, router adapter.Router, logger log.ContextLo
 	if err != nil {
 		return nil, err
 	}
-	return &URLTest{outbound.(*group.URLTest)}, nil
+	switch o := outbound.(type) {
+	case *group.URLTest:
+		return &URLTest{o}, nil
+	case *URLTest:
+		return o, nil
+	default:
+		return nil, fmt.Errorf("unexpected outbound type: %T", outbound)
+	}
 }
 
 func (s *URLTest) DialContext(ctx context.Context, network string, destination metadata.Socksaddr) (net.Conn, error) {
