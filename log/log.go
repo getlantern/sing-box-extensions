@@ -121,7 +121,7 @@ type slogLogger struct {
 	tag string
 }
 
-// Log accpets a [sing-box/log.Level] to satisfy the [log.ContextLogger] interface. It is converted
+// Log accepts a [sing-box/log.Level] to satisfy the [log.ContextLogger] interface. It is converted
 // to [slog.Level] internally.
 func (l *slogLogger) Log(ctx context.Context, level log.Level, args ...any) string {
 	if len(args) == 0 {
