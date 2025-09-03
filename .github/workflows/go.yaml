@@ -3,6 +3,15 @@ name: Go
 on:
   workflow_call:
 
+  pull_request:
+    branches-ignore: main
+    paths:
+      - 'Dockerfile'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.go'
+      - '!.github/**'
+
   push:
     branches-ignore: main
     paths:
