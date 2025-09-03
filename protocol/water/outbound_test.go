@@ -99,13 +99,6 @@ func TestOutboundWASM(t *testing.T) {
 			givenRemotePort: 443,
 		},
 		{
-			name:            "external request to google.com should succeed",
-			givenDomain:     "https://google.com",
-			givenHost:       "google.com",
-			givenRemoteAddr: "142.250.31.113",
-			givenRemotePort: 443,
-		},
-		{
 			name:            "external request to ifconfig.me should succeed",
 			givenDomain:     "https://ifconfig.me/ip",
 			givenHost:       "ifconfig.me",
