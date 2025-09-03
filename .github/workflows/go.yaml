@@ -4,13 +4,8 @@ on:
   workflow_call:
 
   pull_request:
-    branches-ignore: main
-    paths:
-      - 'Dockerfile'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.go'
-      - '!.github/**'
+    types:
+      - opened
 
   push:
     branches-ignore: main
