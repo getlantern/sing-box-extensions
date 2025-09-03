@@ -29,6 +29,8 @@ jobs:
           git config --global url."https://${{ secrets.CI_PRIVATE_REPOS_GH_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
       - name: Environment list
         run: env
+      - name: Integration test
+        run: go test -run TestOutboundWASM --tags integration -race -v ./...
     #   - name: Test
     #     run: make test
     #   - name: Build
