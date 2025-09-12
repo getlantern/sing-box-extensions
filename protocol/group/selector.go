@@ -75,7 +75,9 @@ func (s *Selector) NewConnectionEx(ctx context.Context, conn net.Conn, metadata 
 
 	s.Selector.NewConnectionEx(ctx, conn, metadata, func(it error) {
 		span.RecordError(it)
-		onClose(it)
+		if onClose != nil {
+			onClose(it)
+		}
 	})
 }
 func (s *Selector) NewPacketConnectionEx(ctx context.Context, conn network.PacketConn, metadata adapter.InboundContext, onClose network.CloseHandlerFunc) {
@@ -90,6 +92,8 @@ func (s *Selector) NewPacketConnectionEx(ctx context.Context, conn network.Packe
 
 	s.Selector.NewPacketConnectionEx(ctx, conn, metadata, func(it error) {
 		span.RecordError(it)
-		onClose(it)
+		if onClose != nil {
+			onClose(it)
+		}
 	})
 }
