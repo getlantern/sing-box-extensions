@@ -67,7 +67,10 @@ func (m *TypedMap[K, V]) Store(key K, value V) {
 
 func (m *TypedMap[K, V]) Swap(key K, value V) (previous V, loaded bool) {
 	prev, loaded := m.data.Swap(key, value)
-	return prev.(V), loaded
+	if !loaded {
+		return zero[V](), false
+	}
+	return prev.(V), true
 }
 
 func zero[V any]() V {
