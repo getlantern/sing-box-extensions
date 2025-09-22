@@ -1,4 +1,4 @@
-package adapter
+package groups
 
 import (
 	"context"
@@ -62,7 +62,7 @@ func (m *MutableGroupManager) Close() {
 	if m.closed.Swap(true) {
 		return
 	}
-	m.removalQueue.stop()
+	m.removalQueue.close()
 }
 
 func (m *MutableGroupManager) Groups() []adapter.MutableOutboundGroup {
@@ -126,10 +126,12 @@ func (m *MutableGroupManager) createForGroup(
 		}
 		return fmt.Errorf("failed to add %s to %s: %w", tag, group, err)
 	}
+	// remove from removal queue in case it was scheduled for removal
+	m.removalQueue.dequeue(tag)
 	return nil
 }
 
-// CreateOutboundForGroup creates an outbound for the specified group.
+// RemoveFromGroup removes an outbound/endpoint from the specified group.
 func (m *MutableGroupManager) RemoveFromGroup(group, tag string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -150,7 +152,7 @@ func (m *MutableGroupManager) RemoveFromGroup(group, tag string) error {
 	}
 
 	_, isEndpoint := m.endpointMgr.Get(tag)
-	m.removalQueue.add(tag, isEndpoint)
+	m.removalQueue.enqueue(tag, isEndpoint)
 	return nil
 }
 
@@ -161,12 +163,12 @@ type removalQueue struct {
 	epMgr        A.EndpointManager
 	connMgr      ConnectionManager
 	pending      map[string]item
-	ticker       *time.Ticker
 	pollInterval time.Duration
 	forceAfter   time.Duration
 	mu           sync.RWMutex
+	running      atomic.Bool
 	done         chan struct{}
-	closed       atomic.Bool
+	once         sync.Once
 }
 
 type item struct {
@@ -194,10 +196,13 @@ func newRemovalQueue(
 	}
 }
 
-func (rq *removalQueue) add(tag string, isEndpoint bool) {
-	if rq.closed.Load() {
+func (rq *removalQueue) enqueue(tag string, isEndpoint bool) {
+	select {
+	case <-rq.done:
 		return
+	default:
 	}
+
 	rq.mu.Lock()
 	defer rq.mu.Unlock()
 	if _, exists := rq.pending[tag]; exists {
@@ -208,19 +213,37 @@ func (rq *removalQueue) add(tag string, isEndpoint bool) {
 		isEndpoint: isEndpoint,
 		addedAt:    time.Now(),
 	}
-	if rq.ticker == nil {
-		rq.ticker = time.NewTicker(rq.pollInterval)
+	if !rq.running.Load() {
 		go rq.checkLoop()
 	}
 }
 
+func (rq *removalQueue) dequeue(tag string) {
+	rq.mu.Lock()
+	delete(rq.pending, tag)
+	rq.mu.Unlock()
+}
+
 func (rq *removalQueue) checkLoop() {
+	if !rq.running.CompareAndSwap(false, true) {
+		return
+	}
+	defer rq.running.Store(false)
+
+	rq.checkPending()
+	ticker := time.NewTicker(rq.pollInterval)
+	defer ticker.Stop()
 	for {
+		rq.mu.Lock()
+		if len(rq.pending) == 0 {
+			rq.mu.Unlock()
+			return
+		}
+		rq.mu.Unlock()
 		select {
-		case <-rq.ticker.C:
+		case <-ticker.C:
 			rq.checkPending()
 		case <-rq.done:
-			rq.ticker.Stop()
 			return
 		}
 	}
@@ -231,15 +254,13 @@ func (rq *removalQueue) checkLoop() {
 func (rq *removalQueue) checkPending() {
 	rq.mu.RLock()
 	pending := make(map[string]item, len(rq.pending))
-	for tag, item := range rq.pending {
-		pending[tag] = item
-	}
+	maps.Copy(pending, rq.pending)
 	rq.mu.RUnlock()
 
 	hasConns := make(map[string]bool, len(rq.pending))
 	for _, conn := range rq.connMgr.Connections() {
 		if _, exists := pending[conn.Outbound]; exists {
-			hasConns[conn.Outbound] = hasConns[conn.Outbound] || !conn.ClosedAt.IsZero()
+			hasConns[conn.Outbound] = hasConns[conn.Outbound] || conn.ClosedAt.IsZero()
 		}
 	}
 
@@ -266,18 +287,11 @@ func (rq *removalQueue) checkPending() {
 			}
 			delete(rq.pending, tag)
 		}
-		// Stop ticker if no pending items remain
-		if len(rq.pending) == 0 && rq.ticker != nil {
-			rq.ticker.Stop()
-			rq.ticker = nil
-		}
 	}
 }
 
-func (rq *removalQueue) stop() {
-	select {
-	case <-rq.done:
-	default:
+func (rq *removalQueue) close() {
+	rq.once.Do(func() {
 		close(rq.done)
-	}
+	})
 }
