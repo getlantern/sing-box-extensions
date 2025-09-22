@@ -232,10 +232,11 @@ type urlTestGroup struct {
 	selectedOutboundTCP atomic.TypedValue[A.Outbound]
 	selectedOutboundUDP atomic.TypedValue[A.Outbound]
 	access              sync.Mutex
+	running             atomic.Bool
 	ticker              *time.Ticker
 	idleTimer           *time.Timer
 	lastActive          atomic.TypedValue[time.Time]
-	close               chan struct{}
+	stop                chan struct{}
 	started             bool
 }
 
@@ -257,7 +258,7 @@ func (g *urlTestGroup) Start() error {
 		g.history = urltest.NewHistoryStorage()
 	}
 	g.pauseMgr = service.FromContext[pause.Manager](g.ctx)
-	g.close = make(chan struct{})
+	g.stop = make(chan struct{})
 	return nil
 }
 
@@ -272,18 +273,19 @@ func (g *urlTestGroup) PostStart() {
 func (g *urlTestGroup) Close() error {
 	g.access.Lock()
 	defer g.access.Unlock()
-	if g.ticker == nil {
+	if g.isClosed() {
 		return nil
 	}
 	g.ticker.Stop()
+	g.idleTimer.Stop()
 	g.pauseMgr.UnregisterCallback(g.pauseCallback)
-	close(g.close)
+	close(g.stop)
 	return nil
 }
 
 func (g *urlTestGroup) isClosed() bool {
 	select {
-	case <-g.close:
+	case <-g.stop:
 		return true
 	default:
 		return false
@@ -336,7 +338,7 @@ func (g *urlTestGroup) Remove(tags []string) (n int, err error) {
 		g.tags = append(g.tags, tag)
 	}
 	if len(g.tags) == 0 {
-		g.pauseCheckLoop()
+		g.stop <- struct{}{}
 		g.selectedOutboundTCP.Store(nil)
 		g.selectedOutboundUDP.Store(nil)
 	}
@@ -350,7 +352,7 @@ func (g *urlTestGroup) keepAlive() {
 	if !g.started {
 		return
 	}
-	if g.ticker != nil {
+	if !g.running.CompareAndSwap(false, true) {
 		g.lastActive.Store(time.Now())
 		g.idleTimer.Reset(g.idleTimeout)
 		return
@@ -366,24 +368,20 @@ func (g *urlTestGroup) checkLoop() {
 		g.CheckOutbounds(false)
 	}
 	g.idleTimer = time.NewTimer(g.idleTimeout)
+loop:
 	for {
 		select {
-		case <-g.close:
-			return
+		case <-g.stop:
+			break loop
 		case <-g.ticker.C:
 			g.CheckOutbounds(false)
 		case <-g.idleTimer.C:
-			g.pauseCheckLoop()
-			return
+			break loop
 		}
 	}
-}
-
-func (g *urlTestGroup) pauseCheckLoop() {
 	g.access.Lock()
 	g.ticker.Stop()
-	g.ticker = nil
-	g.idleTimer = nil
+	g.running.Store(false)
 	g.pauseMgr.UnregisterCallback(g.pauseCallback)
 	g.pauseCallback = nil
 	g.access.Unlock()
