@@ -244,7 +244,7 @@ func (s *MutableSelector) NewConnectionEx(ctx context.Context, conn net.Conn, me
 	))
 	defer span.End()
 
-	onClose = func(it error) {
+	wrappedOnClose := func(it error) {
 		span.RecordError(it)
 		if onClose != nil {
 			onClose(it)
@@ -258,10 +258,10 @@ func (s *MutableSelector) NewConnectionEx(ctx context.Context, conn net.Conn, me
 		return
 	}
 	if handler, isHandler := selected.(A.ConnectionHandlerEx); isHandler {
-		handler.NewConnectionEx(ctx, conn, metadata, onClose)
+		handler.NewConnectionEx(ctx, conn, metadata, wrappedOnClose)
 		return
 	}
-	s.connMgr.NewConnection(ctx, selected, conn, metadata, onClose)
+	s.connMgr.NewConnection(ctx, selected, conn, metadata, wrappedOnClose)
 }
 
 func (s *MutableSelector) NewPacketConnectionEx(ctx context.Context, conn network.PacketConn, metadata A.InboundContext, onClose network.CloseHandlerFunc) {
@@ -274,7 +274,7 @@ func (s *MutableSelector) NewPacketConnectionEx(ctx context.Context, conn networ
 	))
 	defer span.End()
 
-	onClose = func(it error) {
+	wrappedOnClose := func(it error) {
 		span.RecordError(it)
 		if onClose != nil {
 			onClose(it)
@@ -288,8 +288,8 @@ func (s *MutableSelector) NewPacketConnectionEx(ctx context.Context, conn networ
 		return
 	}
 	if handler, isHandler := selected.(A.PacketConnectionHandlerEx); isHandler {
-		handler.NewPacketConnectionEx(ctx, conn, metadata, onClose)
+		handler.NewPacketConnectionEx(ctx, conn, metadata, wrappedOnClose)
 		return
 	}
-	s.connMgr.NewPacketConnection(ctx, selected, conn, metadata, onClose)
+	s.connMgr.NewPacketConnection(ctx, selected, conn, metadata, wrappedOnClose)
 }
