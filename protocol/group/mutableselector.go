@@ -254,7 +254,7 @@ func (s *MutableSelector) NewConnectionEx(ctx context.Context, conn net.Conn, me
 	if selected == nil {
 		err := errors.New("no outbound available")
 		s.logger.ErrorContext(ctx, err)
-		onClose(err)
+		wrappedOnClose(err)
 		return
 	}
 	if handler, isHandler := selected.(A.ConnectionHandlerEx); isHandler {
@@ -284,7 +284,7 @@ func (s *MutableSelector) NewPacketConnectionEx(ctx context.Context, conn networ
 	if selected == nil {
 		err := errors.New("no outbound available")
 		s.logger.ErrorContext(ctx, err)
-		onClose(err)
+		wrappedOnClose(err)
 		return
 	}
 	if handler, isHandler := selected.(A.PacketConnectionHandlerEx); isHandler {
