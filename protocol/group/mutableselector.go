@@ -29,7 +29,7 @@ import (
 
 const tracerName = "github.com/getlantern/sing-box-extensions/protocol/group"
 
-func RegisterSelector(registry *outbound.Registry) {
+func RegisterMutableSelector(registry *outbound.Registry) {
 	outbound.Register[option.MutableSelectorOutboundOptions](registry, constant.TypeMutableSelector, NewMutableSelector)
 }
 

@@ -31,7 +31,7 @@ import (
 	"github.com/getlantern/sing-box-extensions/option"
 )
 
-func RegisterURLTest(registry *outbound.Registry) {
+func RegisterMutableURLTest(registry *outbound.Registry) {
 	outbound.Register[option.MutableURLTestOutboundOptions](registry, constant.TypeMutableURLTest, NewMutableURLTest)
 }
 
