@@ -65,7 +65,12 @@ func (m *MutableGroupManager) Close() {
 	m.removalQueue.close()
 }
 
-func (m *MutableGroupManager) Groups() []adapter.MutableOutboundGroup {
+func (m *MutableGroupManager) OutboundGroup(tag string) (adapter.MutableOutboundGroup, bool) {
+	group, found := m.groups[tag]
+	return group, found
+}
+
+func (m *MutableGroupManager) OutboundGroups() []adapter.MutableOutboundGroup {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return slices.Collect(maps.Values(m.groups))
@@ -151,8 +156,15 @@ func (m *MutableGroupManager) RemoveFromGroup(group, tag string) error {
 		return fmt.Errorf("failed to remove %s from %s: %w", tag, group, err)
 	}
 
-	_, isEndpoint := m.endpointMgr.Get(tag)
-	m.removalQueue.enqueue(tag, isEndpoint)
+	outbound, exists := m.outboundMgr.Outbound(tag)
+	if !exists {
+		return nil
+	}
+	// we don't want to delete outbound groups themselves
+	if _, isOutboundGroup := outbound.(A.OutboundGroup); !isOutboundGroup {
+		_, isEndpoint := m.endpointMgr.Get(tag)
+		m.removalQueue.enqueue(tag, isEndpoint)
+	}
 	return nil
 }
 
