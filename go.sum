@@ -157,8 +157,8 @@ github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8/go.mod h1
 github.com/getlantern/ops v0.0.0-20220713155959-1315d978fff7/go.mod h1:D5ao98qkA6pxftxoqzibIBBrLSUli+kYnJqrgBf9cIA=
 github.com/getlantern/ops v0.0.0-20231025133620-f368ab734534 h1:3BwvWj0JZzFEvNNiMhCu4bf60nqcIuQpTYb00Ezm1ag=
 github.com/getlantern/ops v0.0.0-20231025133620-f368ab734534/go.mod h1:ZsLfOY6gKQOTyEcPYNA9ws5/XHZQFroxqCOhHjGcs9Y=
-github.com/getlantern/sing v0.6.13-0.20250806192132-5d1129b5c1cb h1:YAPfg460pSKsVSRpwzri0Yxn6SY7xiMJSUM60FrEbBo=
-github.com/getlantern/sing v0.6.13-0.20250806192132-5d1129b5c1cb/go.mod h1:ARkL0gM13/Iv5VCZmci/NuoOlePoIsW0m7BWfln/Hak=
+github.com/getlantern/sing v0.6.13-0.20250812195008-c4468d0c7c42 h1:9mmkEsa5TlIheUyI4DfaW3+m4W01hMQprraSQzVg6mg=
+github.com/getlantern/sing v0.6.13-0.20250812195008-c4468d0c7c42/go.mod h1:ARkL0gM13/Iv5VCZmci/NuoOlePoIsW0m7BWfln/Hak=
 github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250820161012-d4dd96e95ed6 h1:bvrvUwn96iUIkQl1HmvCETP6mtHGA0Ke3YCtxDj5jhM=
 github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250820161012-d4dd96e95ed6/go.mod h1:E/V6629+bJOeU3HvW0IUCjF0x4UFyq+82jMZoHxxozw=
 github.com/getlantern/wireguard-go v0.0.1-beta.5.0.20250310145906-45220d8aec77 h1:BEYHpyQzW64Mof30bVolWi7D6gIEUJTyh8rcjHwJZnA=

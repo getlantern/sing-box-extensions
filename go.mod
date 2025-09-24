@@ -4,7 +4,7 @@ go 1.23.6
 
 toolchain go1.24.1
 
-replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20250806192132-5d1129b5c1cb
+replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20250812195008-c4468d0c7c42
 
 replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250820161012-d4dd96e95ed6
 
