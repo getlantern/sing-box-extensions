@@ -1,3 +1,4 @@
+// Package amnezia implements the amnezia transport endpoint
 package amnezia
 
 import (
