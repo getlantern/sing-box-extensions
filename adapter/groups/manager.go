@@ -23,6 +23,10 @@ const (
 	forceAfter   = 15 * time.Minute
 )
 
+var (
+	ErrIsClosed = errors.New("manager is closed")
+)
+
 type ConnectionManager interface {
 	Connections() []trafficontrol.TrackerMetadata
 }
@@ -76,7 +80,7 @@ func (m *MutableGroupManager) OutboundGroups() []adapter.MutableOutboundGroup {
 	return slices.Collect(maps.Values(m.groups))
 }
 
-// CreateOutboundForGroup creates an outbound for the specified group.
+// CreateOutboundForGroup creates an outbound and adds it to the specified group.
 func (m *MutableGroupManager) CreateOutboundForGroup(
 	ctx context.Context,
 	router A.Router,
@@ -87,7 +91,7 @@ func (m *MutableGroupManager) CreateOutboundForGroup(
 	return m.createForGroup(ctx, m.outboundMgr, router, logger, group, tag, typ, options)
 }
 
-// CreateEndpointForGroup creates an endpoint for the specified group.
+// CreateEndpointForGroup creates an endpoint and adds it to the specified group.
 func (m *MutableGroupManager) CreateEndpointForGroup(
 	ctx context.Context,
 	router A.Router,
@@ -116,7 +120,7 @@ func (m *MutableGroupManager) createForGroup(
 		return errors.New("manager is closed")
 	}
 
-	groupObj, found := m.groups[group]
+	outGroup, found := m.groups[group]
 	if !found {
 		return fmt.Errorf("group %s not found", group)
 	}
@@ -124,12 +128,30 @@ func (m *MutableGroupManager) createForGroup(
 	if err := mgr.Create(ctx, router, logger, tag, typ, options); err != nil {
 		return err
 	}
-	n, err := groupObj.Add([]string{tag})
+	return m.addToGroup(outGroup, tag)
+}
+
+func (m *MutableGroupManager) AddToGroup(group, tag string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed.Load() {
+		return errors.New("manager is closed")
+	}
+
+	outGroup, found := m.groups[group]
+	if !found {
+		return fmt.Errorf("group %s not found", group)
+	}
+	return m.addToGroup(outGroup, tag)
+}
+
+func (m *MutableGroupManager) addToGroup(outGroup adapter.MutableOutboundGroup, tag string) error {
+	n, err := outGroup.Add([]string{tag})
 	if err != nil || n == 0 {
 		if err == nil {
 			err = errors.New("unknown")
 		}
-		return fmt.Errorf("failed to add %s to %s: %w", tag, group, err)
+		return fmt.Errorf("failed to add %s to %s: %w", tag, outGroup.Tag(), err)
 	}
 	// remove from removal queue in case it was scheduled for removal
 	m.removalQueue.dequeue(tag)
@@ -141,7 +163,7 @@ func (m *MutableGroupManager) RemoveFromGroup(group, tag string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed.Load() {
-		return errors.New("manager is closed")
+		return ErrIsClosed
 	}
 	groupObj, found := m.groups[group]
 	if !found {
