@@ -54,17 +54,13 @@ type MutableSelector struct {
 }
 
 func NewMutableSelector(ctx context.Context, router A.Router, logger log.ContextLogger, tag string, options option.MutableSelectorOutboundOptions) (A.Outbound, error) {
-	tags := options.Outbounds
-	if len(tags) == 0 {
-		return nil, errors.New("missing tags")
-	}
 	selector := &MutableSelector{
 		Adapter:        outbound.NewAdapter(constant.TypeMutableSelector, tag, nil, nil),
 		ctx:            ctx,
 		outboundMgr:    service.FromContext[A.OutboundManager](ctx),
 		connMgr:        service.FromContext[A.ConnectionManager](ctx),
 		logger:         logger,
-		tags:           tags,
+		tags:           options.Outbounds,
 		outbounds:      make(map[string]A.Outbound),
 		interruptGroup: interrupt.NewGroup(),
 	}
@@ -74,6 +70,10 @@ func NewMutableSelector(ctx context.Context, router A.Router, logger log.Context
 func (s *MutableSelector) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(s.tags) == 0 {
+		return nil
+	}
 
 	for _, tag := range s.tags {
 		outbound, found := s.outboundMgr.Outbound(tag)

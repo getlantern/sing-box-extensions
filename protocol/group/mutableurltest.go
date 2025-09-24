@@ -52,9 +52,6 @@ type MutableURLTest struct {
 }
 
 func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger, tag string, options option.MutableURLTestOutboundOptions) (A.Outbound, error) {
-	if len(options.Outbounds) == 0 {
-		return nil, errors.New("missing tags")
-	}
 	interval := time.Duration(options.Interval)
 	if interval == 0 {
 		interval = C.DefaultURLTestInterval
@@ -241,6 +238,13 @@ type urlTestGroup struct {
 }
 
 func (g *urlTestGroup) Start() error {
+	g.access.Lock()
+	defer g.access.Unlock()
+
+	if len(g.tags) == 0 {
+		return nil
+	}
+
 	for _, tag := range g.tags {
 		outbound, found := g.outboundMgr.Outbound(tag)
 		if !found {
@@ -349,7 +353,7 @@ func (g *urlTestGroup) Remove(tags []string) (n int, err error) {
 func (g *urlTestGroup) keepAlive() {
 	g.access.Lock()
 	defer g.access.Unlock()
-	if !g.started {
+	if !g.started || len(g.tags) == 0 {
 		return
 	}
 	if !g.running.CompareAndSwap(false, true) {
