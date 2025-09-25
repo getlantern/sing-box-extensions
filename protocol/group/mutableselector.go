@@ -49,7 +49,7 @@ type MutableSelector struct {
 	tags           []string
 	outbounds      map[string]A.Outbound
 	selected       atomic.TypedValue[A.Outbound]
-	mu             sync.RWMutex
+	mu             sync.Mutex
 	interruptGroup *interrupt.Group
 }
 
@@ -96,8 +96,12 @@ func (s *MutableSelector) Start() error {
 }
 
 func (s *MutableSelector) SelectOutbound(tag string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.selectOutbound(tag)
+}
+
+func (s *MutableSelector) selectOutbound(tag string) bool {
 	outbound, found := s.outbounds[tag]
 	if !found {
 		return false
@@ -131,8 +135,8 @@ func (s *MutableSelector) Now() string {
 }
 
 func (s *MutableSelector) All() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.tags
 }
 
@@ -179,7 +183,7 @@ func (s *MutableSelector) Remove(tags []string) (n int, err error) {
 		if len(s.tags) == 0 {
 			s.selected.Store(nil)
 		} else {
-			s.SelectOutbound(s.tags[0])
+			s.selectOutbound(s.tags[0])
 		}
 	}
 	return
