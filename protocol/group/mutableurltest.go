@@ -219,7 +219,7 @@ type urlTestGroup struct {
 	pauseCallback       *list.Element[pause.Callback]
 	logger              log.Logger
 	tags                []string
-	outbounds           *isync.TypedMap[string, A.Outbound]
+	outbounds           isync.TypedMap[string, A.Outbound]
 	link                string
 	interval            time.Duration
 	tolerance           uint16
@@ -262,7 +262,7 @@ func (g *urlTestGroup) Start() error {
 		g.history = urltest.NewHistoryStorage()
 	}
 	g.pauseMgr = service.FromContext[pause.Manager](g.ctx)
-	g.stop = make(chan struct{})
+	g.stop = make(chan struct{}, 1)
 	return nil
 }
 
@@ -280,9 +280,11 @@ func (g *urlTestGroup) Close() error {
 	if g.isClosed() {
 		return nil
 	}
-	g.ticker.Stop()
-	g.idleTimer.Stop()
-	g.pauseMgr.UnregisterCallback(g.pauseCallback)
+	if g.ticker != nil {
+		g.ticker.Stop()
+		g.idleTimer.Stop()
+		g.pauseMgr.UnregisterCallback(g.pauseCallback)
+	}
 	close(g.stop)
 	return nil
 }
@@ -341,10 +343,11 @@ func (g *urlTestGroup) Remove(tags []string) (n int, err error) {
 	for tag := range g.outbounds.Iter() {
 		g.tags = append(g.tags, tag)
 	}
-	if len(g.tags) == 0 {
-		g.stop <- struct{}{}
-		g.selectedOutboundTCP.Store(nil)
-		g.selectedOutboundUDP.Store(nil)
+	if len(g.tags) == 0 && g.running.Load() {
+		select {
+		case g.stop <- struct{}{}:
+		default:
+		}
 	}
 	g.updateSelected()
 	return
@@ -404,6 +407,9 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 	if g.checking.Swap(true) {
 		return result, nil
 	}
+	if len(g.tags) == 0 {
+		return result, nil
+	}
 	defer g.checking.Store(false)
 	b, _ := batch.New(ctx, batch.WithConcurrencyNum[any](10))
 	checked := make(map[string]bool)
@@ -448,6 +454,11 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 }
 
 func (g *urlTestGroup) updateSelected() {
+	if len(g.tags) == 0 {
+		g.selectedOutboundTCP.Store(nil)
+		g.selectedOutboundUDP.Store(nil)
+		return
+	}
 	tcpOutbound := g.selectedOutboundTCP.Load()
 	if outbound := g.pickBestOutbound("tcp", tcpOutbound); outbound != tcpOutbound {
 		g.selectedOutboundTCP.Store(outbound)
