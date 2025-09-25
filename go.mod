@@ -4,11 +4,13 @@ go 1.23.6
 
 toolchain go1.24.1
 
-replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20250806192132-5d1129b5c1cb
+replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20250812195008-c4468d0c7c42
 
 replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.15-lantern.0.20250820161012-d4dd96e95ed6
 
 replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero v1.7.1-w
+
+replace github.com/sagernet/wireguard-go => github.com/getlantern/wireguard-go v0.0.1-beta.5.0.20250310145906-45220d8aec77
 
 // replace github.com/sagernet/sing-box => ../sing-box-minimal
 
@@ -28,6 +30,7 @@ require (
 	github.com/tetratelabs/wazero v1.7.3
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/metric v1.35.0
+	go.opentelemetry.io/otel/trace v1.35.0
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -148,6 +151,7 @@ require (
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/tevino/abool/v2 v2.1.0 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
@@ -155,7 +159,6 @@ require (
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect

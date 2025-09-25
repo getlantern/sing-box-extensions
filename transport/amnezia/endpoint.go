@@ -21,7 +21,6 @@ import (
 	"github.com/sagernet/sing/service/pause"
 	"github.com/sagernet/wireguard-go/conn"
 	"github.com/sagernet/wireguard-go/device"
-	"github.com/sagernet/wireguard-go/ipc"
 
 	"go4.org/netipx"
 )
@@ -152,7 +151,6 @@ func NewEndpoint(options EndpointOptions) (*Endpoint, error) {
 		tunDevice:      tunDevice,
 	}, nil
 }
-
 func (e *Endpoint) Start(resolve bool) error {
 	if common.Any(e.peers, func(peer peerConfig) bool {
 		return !peer.endpoint.IsValid() && peer.destination.IsFqdn()
@@ -172,11 +170,6 @@ func (e *Endpoint) Start(resolve bool) error {
 		}
 	} else if resolve {
 		return nil
-	}
-
-	fileUAPI, uapiErr := ipc.UAPIOpen(e.options.Name)
-	if uapiErr != nil {
-		return fmt.Errorf("failed to open uapi socket for %s: %w", e.options.Name, uapiErr)
 	}
 
 	var bind conn.Bind
@@ -217,9 +210,9 @@ func (e *Endpoint) Start(resolve bool) error {
 	}
 	wgDevice := device.NewDevice(e.options.Context, e.tunDevice, bind, logger, e.options.Workers)
 
-	uapi, err := ipc.UAPIListen(e.options.Name, fileUAPI)
+	uapi, err := uapiListen(e.options.Name)
 	if err != nil {
-		return fmt.Errorf("failed to listen on uapi socket: %v", err)
+		return err
 	}
 
 	go func() {
