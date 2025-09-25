@@ -324,6 +324,7 @@ func (g *urlTestGroup) Add(tags []string) (n int, err error) {
 			return n, fmt.Errorf("outbound %s not found", tag)
 		}
 		g.outbounds.Store(tag, outbound)
+		g.tags = append(g.tags, tag)
 		n++
 	}
 	return
