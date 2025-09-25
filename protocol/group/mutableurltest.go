@@ -18,7 +18,6 @@ import (
 	"github.com/sagernet/sing/common/batch"
 	"github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
-	"github.com/sagernet/sing/common/x/list"
 	"github.com/sagernet/sing/service"
 	"github.com/sagernet/sing/service/pause"
 	"go.opentelemetry.io/otel"
@@ -74,16 +73,9 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 		outboundMgr: outboundMgr,
 		connMgr:     service.FromContext[A.ConnectionManager](ctx),
 		logger:      logger,
-		group: &urlTestGroup{
-			ctx:         ctx,
-			outboundMgr: outboundMgr,
-			logger:      logger,
-			tags:        options.Outbounds,
-			link:        options.URL,
-			interval:    interval,
-			idleTimeout: idleTimeout,
-			tolerance:   options.Tolerance,
-		},
+		group: newURLTestGroup(
+			ctx, outboundMgr, logger, options.Outbounds, options.URL, interval, idleTimeout, options.Tolerance,
+		),
 	}
 	return outbound, nil
 }
@@ -216,25 +208,47 @@ type urlTestGroup struct {
 	ctx                 context.Context
 	outboundMgr         A.OutboundManager
 	pauseMgr            pause.Manager
-	pauseCallback       *list.Element[pause.Callback]
 	logger              log.Logger
 	tags                []string
 	outbounds           isync.TypedMap[string, A.Outbound]
-	link                string
+	url                 string
 	interval            time.Duration
 	tolerance           uint16
 	idleTimeout         time.Duration
 	history             *urltest.HistoryStorage
-	checking            atomic.Bool
 	selectedOutboundTCP atomic.TypedValue[A.Outbound]
 	selectedOutboundUDP atomic.TypedValue[A.Outbound]
 	access              sync.Mutex
-	running             atomic.Bool
-	ticker              *time.Ticker
+	checking            atomic.Bool
+	started             bool
+	isAlive             bool
 	idleTimer           *time.Timer
 	lastActive          atomic.TypedValue[time.Time]
-	stop                chan struct{}
-	started             bool
+	pauseC              chan struct{}
+	cancel              context.CancelFunc
+}
+
+func newURLTestGroup(
+	ctx context.Context,
+	outboundMgr A.OutboundManager,
+	logger log.ContextLogger,
+	tags []string,
+	link string,
+	interval, idleTimeout time.Duration,
+	tolerance uint16,
+) *urlTestGroup {
+	ctx, cancel := context.WithCancel(ctx)
+	return &urlTestGroup{
+		ctx:         ctx,
+		outboundMgr: outboundMgr,
+		logger:      logger,
+		tags:        tags,
+		url:         link,
+		interval:    interval,
+		idleTimeout: idleTimeout,
+		tolerance:   tolerance,
+		cancel:      cancel,
+	}
 }
 
 func (g *urlTestGroup) Start() error {
@@ -262,7 +276,6 @@ func (g *urlTestGroup) Start() error {
 		g.history = urltest.NewHistoryStorage()
 	}
 	g.pauseMgr = service.FromContext[pause.Manager](g.ctx)
-	g.stop = make(chan struct{}, 1)
 	return nil
 }
 
@@ -275,23 +288,19 @@ func (g *urlTestGroup) PostStart() {
 }
 
 func (g *urlTestGroup) Close() error {
-	g.access.Lock()
-	defer g.access.Unlock()
 	if g.isClosed() {
 		return nil
 	}
-	if g.ticker != nil {
-		g.ticker.Stop()
-		g.idleTimer.Stop()
-		g.pauseMgr.UnregisterCallback(g.pauseCallback)
-	}
-	close(g.stop)
+	g.access.Lock()
+	defer g.access.Unlock()
+	g.cancel()
+	close(g.pauseC)
 	return nil
 }
 
 func (g *urlTestGroup) isClosed() bool {
 	select {
-	case <-g.stop:
+	case <-g.ctx.Done():
 		return true
 	default:
 		return false
@@ -343,9 +352,9 @@ func (g *urlTestGroup) Remove(tags []string) (n int, err error) {
 	for tag := range g.outbounds.Iter() {
 		g.tags = append(g.tags, tag)
 	}
-	if len(g.tags) == 0 && g.running.Load() {
+	if len(g.tags) == 0 && g.isAlive {
 		select {
-		case g.stop <- struct{}{}:
+		case g.pauseC <- struct{}{}:
 		default:
 		}
 	}
@@ -359,14 +368,13 @@ func (g *urlTestGroup) keepAlive() {
 	if !g.started || len(g.tags) == 0 {
 		return
 	}
-	if !g.running.CompareAndSwap(false, true) {
+	if g.isAlive {
 		g.lastActive.Store(time.Now())
 		g.idleTimer.Reset(g.idleTimeout)
 		return
 	}
-	g.ticker = time.NewTicker(g.interval)
+	g.pauseC = make(chan struct{}, 1)
 	go g.checkLoop()
-	g.pauseCallback = pause.RegisterTicker(g.pauseMgr, g.ticker, g.interval, nil)
 }
 
 func (g *urlTestGroup) checkLoop() {
@@ -374,24 +382,32 @@ func (g *urlTestGroup) checkLoop() {
 		g.lastActive.Store(time.Now())
 		g.CheckOutbounds(false)
 	}
+	g.access.Lock()
+	ctx, cancel := context.WithCancel(g.ctx)
+	ticker := time.NewTicker(g.interval)
+	pauseCallback := pause.RegisterTicker(g.pauseMgr, ticker, g.interval, nil)
 	g.idleTimer = time.NewTimer(g.idleTimeout)
-loop:
+	g.isAlive = true
+	g.access.Unlock()
+
+	defer func() {
+		cancel()
+		g.access.Lock()
+		g.pauseMgr.UnregisterCallback(pauseCallback)
+		g.idleTimer.Stop()
+		g.isAlive = false
+		g.access.Unlock()
+	}()
 	for {
 		select {
-		case <-g.stop:
-			break loop
-		case <-g.ticker.C:
-			g.CheckOutbounds(false)
+		case <-g.pauseC:
+			return
 		case <-g.idleTimer.C:
-			break loop
+			return
+		case <-ticker.C:
+			go g.urlTest(ctx, false)
 		}
 	}
-	g.access.Lock()
-	g.ticker.Stop()
-	g.running.Store(false)
-	g.pauseMgr.UnregisterCallback(g.pauseCallback)
-	g.pauseCallback = nil
-	g.access.Unlock()
 }
 
 func (g *urlTestGroup) CheckOutbounds(force bool) {
@@ -431,7 +447,7 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 		b.Go(realTag, func() (any, error) {
 			testCtx, cancel := context.WithTimeout(g.ctx, C.TCPTimeout)
 			defer cancel()
-			t, err := urltest.URLTest(testCtx, g.link, p)
+			t, err := urltest.URLTest(testCtx, g.url, p)
 			if err != nil {
 				g.logger.Debug("outbound ", tag, " unavailable: ", err)
 				g.history.DeleteURLTestHistory(realTag)
