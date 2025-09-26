@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"github.com/getlantern/sing-box-extensions/adapter"
 	"github.com/getlantern/sing-box-extensions/constant"
 	isync "github.com/getlantern/sing-box-extensions/internal/sync"
+	sbxL "github.com/getlantern/sing-box-extensions/log"
 	"github.com/getlantern/sing-box-extensions/option"
 )
 
@@ -66,6 +68,7 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 		options.Tolerance = 50
 	}
 
+	log := sbxL.NewFactory(logger.(sbxL.SLogger).SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
 	outboundMgr := service.FromContext[A.OutboundManager](ctx)
 	outbound := &MutableURLTest{
 		Adapter:     outbound.NewAdapter(constant.TypeMutableURLTest, tag, []string{"tcp", "udp"}, nil),
@@ -74,7 +77,7 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 		connMgr:     service.FromContext[A.ConnectionManager](ctx),
 		logger:      logger,
 		group: newURLTestGroup(
-			ctx, outboundMgr, logger, options.Outbounds, options.URL, interval, idleTimeout, options.Tolerance,
+			ctx, outboundMgr, log.Logger(), options.Outbounds, options.URL, interval, idleTimeout, options.Tolerance,
 		),
 	}
 	return outbound, nil
@@ -276,6 +279,7 @@ func (g *urlTestGroup) Start() error {
 		g.history = urltest.NewHistoryStorage()
 	}
 	g.pauseMgr = service.FromContext[pause.Manager](g.ctx)
+	g.updateSelected()
 	return nil
 }
 
@@ -284,7 +288,7 @@ func (g *urlTestGroup) PostStart() {
 	defer g.access.Unlock()
 	g.started = true
 	g.lastActive.Store(time.Now())
-	go g.CheckOutbounds(false)
+	go g.CheckOutbounds(true)
 }
 
 func (g *urlTestGroup) Close() error {
@@ -432,12 +436,22 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 	if len(g.tags) == 0 {
 		return result, nil
 	}
+	g.logger.Trace("checking outbounds...")
 	defer g.checking.Store(false)
 	b, _ := batch.New(ctx, batch.WithConcurrencyNum[any](10))
 	checked := make(map[string]bool)
 	var resultAccess sync.Mutex
 	for tag, outbound := range g.outbounds.Iter() {
-		realTag := realTag(outbound)
+		// if outbound is an urltest group, start its own url test and skip
+		if testGroup, isURLTestGroup := outbound.(A.URLTestGroup); isURLTestGroup {
+			go testGroup.URLTest(ctx)
+			continue
+		}
+		realTag := realTag(outbound) // gets the selected outbound if it's a group
+		if realTag == "" {
+			g.logger.Trace("skipping outbound", "tag", tag, "reason", "empty real tag")
+			continue
+		}
 		if checked[realTag] {
 			continue
 		}
@@ -448,18 +462,18 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 		checked[realTag] = true
 		p, loaded := g.outboundMgr.Outbound(realTag)
 		if !loaded {
+			g.logger.Trace("skipping outbound", "tag", realTag, "reason", "not found")
 			continue
 		}
 		b.Go(realTag, func() (any, error) {
 			testCtx, cancel := context.WithTimeout(g.ctx, C.TCPTimeout)
 			defer cancel()
+			g.logger.Trace("checking outbound", "tag", realTag)
 			t, err := urltest.URLTest(testCtx, g.url, p)
 			if err != nil {
-				g.logger.Debug("outbound ", tag, " unavailable: ", err)
 				g.history.DeleteURLTestHistory(realTag)
 				return nil, nil
 			}
-			g.logger.Debug("outbound ", tag, " available: ", t, "ms")
 			g.history.StoreURLTestHistory(realTag, &urltest.History{
 				Time:  time.Now(),
 				Delay: t,
@@ -512,7 +526,11 @@ func (g *urlTestGroup) pickBestOutbound(network string, current A.Outbound) A.Ou
 		if minOutbound == nil {
 			minOutbound = outbound
 		}
-		history := g.history.LoadURLTestHistory(realTag(outbound))
+		rTag := realTag(outbound)
+		if rTag == "" {
+			continue
+		}
+		history := g.history.LoadURLTestHistory(rTag)
 		if history == nil {
 			continue
 		}
