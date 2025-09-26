@@ -142,7 +142,7 @@ func (s *MutableSelector) All() []string {
 
 // Add adds the given outbound tags to the group and returns the number of outbounds added. If an
 // outbound tag already exists, it will be ignored.
-func (s *MutableSelector) Add(tags []string) (n int, err error) {
+func (s *MutableSelector) Add(tags ...string) (n int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -163,7 +163,7 @@ func (s *MutableSelector) Add(tags []string) (n int, err error) {
 
 // Remove removes the given outbound tags from the group and returns the number of outbounds removed.
 // A random outbound will be selected if the currently selected outbound is removed.
-func (s *MutableSelector) Remove(tags []string) (n int, err error) {
+func (s *MutableSelector) Remove(tags ...string) (n int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -109,12 +109,12 @@ func (s *MutableURLTest) All() []string {
 
 // Add adds the given outbound tags to the group and returns the number of outbounds added. If an
 // outbound tag already exists, it will be ignored.
-func (s *MutableURLTest) Add(tags []string) (n int, err error) {
+func (s *MutableURLTest) Add(tags ...string) (n int, err error) {
 	return s.group.Add(tags)
 }
 
 // Remove removes the given outbound tags from the group and returns the number of outbounds removed.
-func (s *MutableURLTest) Remove(tags []string) (n int, err error) {
+func (s *MutableURLTest) Remove(tags ...string) (n int, err error) {
 	return s.group.Remove(tags)
 }
 

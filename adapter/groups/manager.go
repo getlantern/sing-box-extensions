@@ -146,7 +146,7 @@ func (m *MutableGroupManager) AddToGroup(group, tag string) error {
 }
 
 func (m *MutableGroupManager) addToGroup(outGroup adapter.MutableOutboundGroup, tag string) error {
-	n, err := outGroup.Add([]string{tag})
+	n, err := outGroup.Add(tag)
 	if err != nil || n == 0 {
 		if err == nil {
 			err = errors.New("unknown")
@@ -170,7 +170,7 @@ func (m *MutableGroupManager) RemoveFromGroup(group, tag string) error {
 		return fmt.Errorf("group %s not found", group)
 	}
 
-	n, err := groupObj.Remove([]string{tag})
+	n, err := groupObj.Remove(tag)
 	if err != nil || n == 0 {
 		if err == nil {
 			err = errors.New("unknown")
