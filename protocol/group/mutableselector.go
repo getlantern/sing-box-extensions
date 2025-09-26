@@ -146,19 +146,24 @@ func (s *MutableSelector) Add(tags ...string) (n int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	var missing []string
 	for _, tag := range tags {
 		if _, exists := s.outbounds[tag]; exists {
 			continue
 		}
 		outbound, found := s.outboundMgr.Outbound(tag)
 		if !found {
-			return n, fmt.Errorf("outbound %s not found", tag)
+			missing = append(missing, tag)
+			continue
 		}
 		s.outbounds[tag] = outbound
 		s.tags = append(s.tags, tag)
 		n++
 	}
-	return
+	if len(missing) > 0 {
+		return n, fmt.Errorf("%d outbounds not found: %v", len(missing), missing)
+	}
+	return n, nil
 }
 
 // Remove removes the given outbound tags from the group and returns the number of outbounds removed.

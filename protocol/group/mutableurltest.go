@@ -315,19 +315,24 @@ func (g *urlTestGroup) Add(tags []string) (n int, err error) {
 		return 0, errors.New("group is closed")
 	}
 
+	var missing []string
 	for _, tag := range tags {
 		if _, exists := g.outbounds.Load(tag); exists {
 			continue
 		}
 		outbound, found := g.outboundMgr.Outbound(tag)
 		if !found {
-			return n, fmt.Errorf("outbound %s not found", tag)
+			missing = append(missing, tag)
+			continue
 		}
 		g.outbounds.Store(tag, outbound)
 		g.tags = append(g.tags, tag)
 		n++
 	}
-	return
+	if len(missing) > 0 {
+		return n, fmt.Errorf("%d outbounds not found: %v", len(missing), missing)
+	}
+	return n, nil
 }
 
 func (g *urlTestGroup) Remove(tags []string) (n int, err error) {
