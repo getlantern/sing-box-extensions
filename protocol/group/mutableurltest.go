@@ -508,9 +508,8 @@ func (g *urlTestGroup) updateSelected() {
 
 func (g *urlTestGroup) pickBestOutbound(network string, current A.Outbound) A.Outbound {
 	var (
-		minDelay      uint16
-		minOutbound   A.Outbound
-		haveOutbounds bool
+		minDelay    uint16
+		minOutbound A.Outbound
 	)
 	if current != nil {
 		if history := g.history.LoadURLTestHistory(realTag(current)); history != nil {
@@ -521,10 +520,6 @@ func (g *urlTestGroup) pickBestOutbound(network string, current A.Outbound) A.Ou
 	for _, outbound := range g.outbounds.Iter() {
 		if !slices.Contains(outbound.Network(), network) {
 			continue
-		}
-		haveOutbounds = true
-		if minOutbound == nil {
-			minOutbound = outbound
 		}
 		rTag := realTag(outbound)
 		if rTag == "" {
@@ -539,10 +534,15 @@ func (g *urlTestGroup) pickBestOutbound(network string, current A.Outbound) A.Ou
 			minOutbound = outbound
 		}
 	}
-	if !haveOutbounds {
-		return nil
+	if minOutbound != nil {
+		return minOutbound
 	}
-	return minOutbound
+	for _, outbound := range g.outbounds.Iter() {
+		if slices.Contains(outbound.Network(), network) && realTag(outbound) != "" {
+			return outbound
+		}
+	}
+	return nil
 }
 
 func realTag(outbound A.Outbound) string {
