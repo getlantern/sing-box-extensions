@@ -68,7 +68,11 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 		options.Tolerance = 50
 	}
 
-	log := sbxL.NewFactory(logger.(sbxL.SLogger).SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
+	log := logger
+	if slogger, ok := logger.(sbxL.SLogger); ok {
+		nfact := sbxL.NewFactory(slogger.SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
+		log = nfact.Logger()
+	}
 	outboundMgr := service.FromContext[A.OutboundManager](ctx)
 	outbound := &MutableURLTest{
 		Adapter:     outbound.NewAdapter(constant.TypeMutableURLTest, tag, []string{"tcp", "udp"}, nil),
@@ -77,7 +81,7 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 		connMgr:     service.FromContext[A.ConnectionManager](ctx),
 		logger:      logger,
 		group: newURLTestGroup(
-			ctx, outboundMgr, log.Logger(), options.Outbounds, options.URL, interval, idleTimeout, options.Tolerance,
+			ctx, outboundMgr, log, options.Outbounds, options.URL, interval, idleTimeout, options.Tolerance,
 		),
 	}
 	return outbound, nil
