@@ -475,9 +475,11 @@ func (g *urlTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 			g.logger.Trace("checking outbound", "tag", realTag)
 			t, err := urltest.URLTest(testCtx, g.url, p)
 			if err != nil {
+				g.logger.Debug("outbound unavailable", "tag", realTag, "error", err)
 				g.history.DeleteURLTestHistory(realTag)
 				return nil, nil
 			}
+			g.logger.Debug("outbound available", "tag", realTag, "delay_ms", t)
 			g.history.StoreURLTestHistory(realTag, &urltest.History{
 				Time:  time.Now(),
 				Delay: t,
