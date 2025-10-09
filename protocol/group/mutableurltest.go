@@ -299,10 +299,13 @@ func (g *urlTestGroup) Close() error {
 	if g.isClosed() {
 		return nil
 	}
+	g.cancel()
+
 	g.access.Lock()
 	defer g.access.Unlock()
-	g.cancel()
-	close(g.pauseC)
+	if g.pauseC != nil {
+		close(g.pauseC)
+	}
 	return nil
 }
 
