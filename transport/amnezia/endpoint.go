@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -210,30 +209,11 @@ func (e *Endpoint) Start(resolve bool) error {
 	}
 	wgDevice := device.NewDevice(e.options.Context, e.tunDevice, bind, logger, e.options.Workers)
 
-	uapi, err := uapiListen(e.options.Name)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for {
-			select {
-			case <-e.options.Context.Done():
-				uapi.Close()
-				return
-			default:
-				conn, err := uapi.Accept()
-				if err != nil {
-					if errors.Is(err, net.ErrClosed) {
-						return
-					}
-					e.options.Logger.Error(E.Cause(err, "uapi accept error"))
-					continue // any other accept error, just continue
-				}
-				go wgDevice.IpcHandle(conn)
-			}
+	if isWgListener {
+		if err := startUAPIListener(e.options.Context, e.options.Name, wgDevice, e.options.Logger); err != nil {
+			return E.Cause(err, "start UAPI listener")
 		}
-	}()
+	}
 
 	e.tunDevice.SetDevice(wgDevice)
 	ipcConf := e.ipcConf
