@@ -2,28 +2,29 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
-	"github.com/alexflint/go-arg"
 	box "github.com/sagernet/sing-box"
+	"github.com/spf13/cobra"
 
 	"github.com/getlantern/sing-box-extensions/protocol"
 )
 
-var args struct {
-	DataDir    string `arg:"-d,--data-dir" help:"data directory" default:"./data"`
-	ConfigFile string `arg:"-c,--config" help:"Path to JSON config file" default:"./config.json"`
+var globalCtx context.Context
 
-	Run   *RunCmd   `arg:"subcommand:run" help:"start the server"`
-	Check *CheckCmd `arg:"subcommand:check" help:"validate initial configuration"`
+var rootCmd = &cobra.Command{
+	Use:               "sing-box",
+	Version:           "v1.11.7",
+	PersistentPreRun:  preRun,
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	SilenceErrors:     true,
+	SilenceUsage:      true,
 }
 
-func newBaseContext() context.Context {
-	// Retrieve protocol registries
+func preRun(cmd *cobra.Command, args []string) {
 	inboundRegistry, outboundRegistry, endpointRegistry := protocol.GetRegistries()
-	return box.Context(
+	globalCtx = box.Context(
 		context.Background(),
 		inboundRegistry,
 		outboundRegistry,
@@ -32,22 +33,8 @@ func newBaseContext() context.Context {
 }
 
 func main() {
-	var err error
-	p := arg.MustParse(&args)
-	switch {
-	case args.Run != nil:
-		err = args.Run.Run()
-	case args.Check != nil:
-		err = args.Check.Run()
-	default:
-		p.WriteHelp(os.Stderr)
-	}
-	if err != nil {
-		if errors.Is(err, arg.ErrHelp) {
-			_ = p.WriteHelpForSubcommand(os.Stderr, p.SubcommandNames()...)
-		} else {
-			_, _ = fmt.Fprintln(os.Stderr, err)
-		}
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

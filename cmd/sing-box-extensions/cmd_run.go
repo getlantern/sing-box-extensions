@@ -3,48 +3,63 @@ package main
 import (
 	"context"
 	"fmt"
-	C "github.com/sagernet/sing-box/constant"
-	"github.com/sagernet/sing-box/experimental/libbox"
-	"github.com/sagernet/sing-box/log"
-	E "github.com/sagernet/sing/common/exceptions"
 	"os"
 	"os/signal"
-	"path/filepath"
 	runtimeDebug "runtime/debug"
 	"syscall"
 	"time"
+
+	box "github.com/sagernet/sing-box"
+	C "github.com/sagernet/sing-box/constant"
+	"github.com/sagernet/sing-box/log"
+	"github.com/sagernet/sing-box/option"
+	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/sagernet/sing/common/json"
+	"github.com/spf13/cobra"
 )
 
-type RunCmd struct {
+func init() {
+	rootCmd.AddCommand(runCmd)
+	runCmd.Flags().String("config", "config.json", "Configuration file path")
 }
 
-func prepare(configFile string) (*libbox.BoxService, context.CancelFunc, error) {
-	ctx, cancel := context.WithCancel(newBaseContext())
-
-	var config string
-
-	if data, err := os.ReadFile(configFile); err != nil {
-		return nil, cancel, fmt.Errorf("reading config file: %w", err)
-	} else {
-		config = string(data)
-	}
-	if err := libbox.Setup(&libbox.SetupOptions{
-		BasePath:    args.DataDir,
-		WorkingPath: filepath.Join(args.DataDir, "data"),
-		TempPath:    filepath.Join(args.DataDir, "temp"),
-	}); err != nil {
-		return nil, cancel, fmt.Errorf("setup libbox: %w", err)
-	}
-
-	instance, err := libbox.NewServiceWithContext(ctx, config, nil)
-	return instance, cancel, err
+var runCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Run service",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := cmd.Flags().GetString("config")
+		if err != nil {
+			return fmt.Errorf("get config flag: %w", err)
+		}
+		return run(path)
+	},
 }
 
-func create(config string) (*libbox.BoxService, context.CancelFunc, error) {
-	instance, cancel, err := prepare(config)
+func readConfig(path string) (option.Options, error) {
+	content, err := os.ReadFile(path)
 	if err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("setup libbox: %w", err)
+		return option.Options{}, fmt.Errorf("reading config file: %w", err)
+	}
+	options, err := json.UnmarshalExtendedContext[option.Options](globalCtx, content)
+	if err != nil {
+		return option.Options{}, fmt.Errorf("parsing config file: %w", err)
+	}
+	return options, nil
+}
+
+func create(configPath string) (*box.Box, context.CancelFunc, error) {
+	options, err := readConfig(configPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read config: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(globalCtx)
+	instance, err := box.New(box.Options{
+		Context: ctx,
+		Options: options,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("create service: %w", err)
 	}
 
 	osSignals := make(chan os.Signal, 1)
@@ -80,12 +95,12 @@ func closeMonitor(ctx context.Context) {
 	log.Fatal("sing-box did not close!")
 }
 
-func (c *RunCmd) Run() error {
+func run(configPath string) error {
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(osSignals)
 	for {
-		instance, cancel, err := create(args.ConfigFile)
+		instance, cancel, err := create(configPath)
 		if err != nil {
 			return err
 		}
@@ -93,7 +108,7 @@ func (c *RunCmd) Run() error {
 		for {
 			osSignal := <-osSignals
 			if osSignal == syscall.SIGHUP {
-				err = check(args.ConfigFile)
+				err = check(configPath)
 				if err != nil {
 					log.Error(E.Cause(err, "reload service"))
 					continue
