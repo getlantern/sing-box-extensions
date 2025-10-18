@@ -46,35 +46,34 @@ var addPeerCmd = &cobra.Command{
 		key, _ := cmd.Flags().GetString("public-key")
 		allowedIPs, _ := cmd.Flags().GetStringSlice("allowed-ips")
 		sock, _ := cmd.Flags().GetString("socket")
-		res, err := addPeer(key, allowedIPs, sock)
+		err := addPeer(key, allowedIPs, sock)
 		if err != nil {
 			return fmt.Errorf("adding peer: %w", err)
 		}
-		res = strings.TrimSpace(res)
 		fmt.Println("Peer added")
 		return nil
 	},
 }
 
-func addPeer(publicKey string, allowedIPs []string, wgIfc string) (string, error) {
+func addPeer(publicKey string, allowedIPs []string, wgIfc string) error {
 	publicKeyHex, err := keyToHex(publicKey)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req := "public_key=" + publicKeyHex + "\n"
 	for _, ip := range allowedIPs {
 		_, _, err := net.ParseCIDR(ip)
 		if err != nil {
-			return "", fmt.Errorf("parsing allowed IP %s: %w", ip, err)
+			return fmt.Errorf("parsing allowed IP %s: %w", ip, err)
 		}
 		req += "allowed_ip=" + ip + "\n"
 	}
-	res, err := sendReq("set=1\n"+req, wgIfc)
+	_, err = sendReq("set=1\n"+req, wgIfc)
 	if err != nil {
-		return "", fmt.Errorf("sending request: %w", err)
+		return fmt.Errorf("sending request: %w", err)
 	}
-	return res, nil
+	return nil
 }
 
 var removePeerCmd = &cobra.Command{
@@ -83,28 +82,27 @@ var removePeerCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key, _ := cmd.Flags().GetString("public-key")
 		sock, _ := cmd.Flags().GetString("socket")
-		res, err := removePeer(key, sock)
+		err := removePeer(key, sock)
 		if err != nil {
 			return fmt.Errorf("removing peer: %w", err)
 		}
-		res = strings.TrimSpace(res)
 		fmt.Println("Peer removed")
 		return nil
 	},
 }
 
-func removePeer(publicKey string, wgIfc string) (string, error) {
+func removePeer(publicKey string, wgIfc string) error {
 	publicKeyHex, err := keyToHex(publicKey)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req := "set=1\npublic_key=" + publicKeyHex + "\nremove=true\n"
-	res, err := sendReq(req, wgIfc)
+	_, err = sendReq(req, wgIfc)
 	if err != nil {
-		return "", fmt.Errorf("sending request: %w", err)
+		return fmt.Errorf("sending request: %w", err)
 	}
-	return res, nil
+	return nil
 }
 
 var listPeersCmd = &cobra.Command{
