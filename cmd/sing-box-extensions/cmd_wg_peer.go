@@ -122,41 +122,27 @@ var listPeersCmd = &cobra.Command{
 			fmt.Println("No peers found.")
 			return nil
 		}
-		printPeers(strings.TrimSpace(res[idx:]))
+		printPeers(res[idx:])
 		return nil
 	},
 }
 
 func printPeers(s string) {
 	var peers []string
-	var idx int
+	s = strings.TrimSpace(s)
 	for {
-		if idx = strings.Index(s[idx+1:], "public_key"); idx == -1 {
+		idx := strings.Index(s[1:], "public_key")
+		if idx == -1 {
 			peers = append(peers, s)
 			break
 		}
+		idx++ // adjust for the offset
 		peers = append(peers, s[:idx])
 		s = s[idx:]
 	}
-
-	for _, peer := range peers {
-		lines := strings.Split(peer, "\n")
-		ips := []string{}
-		for _, line := range lines {
-			switch {
-			case strings.HasPrefix(line, "allowed_ip="):
-				ips = append(ips, line[len("allowed_ip="):])
-			case strings.HasPrefix(line, "public_key="):
-				fmt.Println("-", line)
-			case line == "errno=0", line == "":
-			default:
-				fmt.Println(" ", line)
-			}
-		}
-		if len(ips) > 0 {
-			fmt.Printf("  allowed_ips=[%s]\n", strings.Join(ips, ", "))
-		}
-	}
+	fmt.Println("--------------------------------")
+	fmt.Println(strings.Join(peers, "\n--------------------------------\n"))
+	fmt.Println()
 }
 
 func keyToHex(publicKey string) (string, error) {
