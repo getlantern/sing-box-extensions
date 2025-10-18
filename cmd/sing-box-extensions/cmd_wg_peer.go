@@ -158,11 +158,12 @@ func sendReq(req, wgSock string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("dialing socket: %w", err)
 	}
+	defer conn.Close()
 
 	switch {
-	case req[len(req)-2:] != "\n\n":
+	case req[len(req)-1] != '\n': // has no trailing newline
 		req += "\n\n"
-	case req[len(req)-1] != '\n':
+	case req[len(req)-2:] != "\n\n": // has one trailing newline
 		req += "\n"
 	}
 	_, err = conn.Write([]byte(req))
