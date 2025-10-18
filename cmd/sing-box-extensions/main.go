@@ -14,7 +14,7 @@ import (
 var globalCtx context.Context
 
 var rootCmd = &cobra.Command{
-	Use:               "sing-box",
+	Use:               "sbx",
 	Version:           "v1.11.7",
 	PersistentPreRun:  preRun,
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
