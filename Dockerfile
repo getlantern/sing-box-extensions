@@ -18,7 +18,7 @@ ENV GOARCH=$TARGETARCH
 RUN set -ex \
     && go build -v -tags \
        "with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_acme,with_clash_api" \
-       -o /usr/local/bin/sing-box-extensions ./cmd/sing-box-extensions
+       -o /usr/local/bin/sbx ./cmd/sing-box-extensions
 
 FROM debian:bullseye-slim
 RUN set -ex \
@@ -26,6 +26,6 @@ RUN set -ex \
     && apt-get install -y ca-certificates tzdata nftables wireguard-tools \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/bin/sing-box-extensions /usr/local/bin/sing-box-extensions
+COPY --from=builder /usr/local/bin/sbx /usr/local/bin/sbx
 
-ENTRYPOINT ["/usr/local/bin/sing-box-extensions", "-d", "/data", "-c", "/config.json", "run"]
+ENTRYPOINT ["/usr/local/bin/sbx", "run", "--config", "/config.json"]

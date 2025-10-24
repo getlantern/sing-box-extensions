@@ -17,7 +17,6 @@ replace github.com/sagernet/wireguard-go => github.com/getlantern/wireguard-go v
 require (
 	github.com/Jigsaw-Code/outline-sdk v0.0.19
 	github.com/Jigsaw-Code/outline-sdk/x v0.0.2
-	github.com/alexflint/go-arg v1.4.3
 	github.com/getlantern/algeneva v0.0.0-20250307163401-1824e7b54f52
 	github.com/getlantern/lantern-water v0.0.0-20250331153903-07abebe611e8
 	github.com/gobwas/ws v1.4.0
@@ -26,6 +25,7 @@ require (
 	github.com/sagernet/sing-box v1.11.5
 	github.com/sagernet/sing-dns v0.4.6
 	github.com/sagernet/wireguard-go v0.0.1-beta.7
+	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.7.3
 	go.opentelemetry.io/otel v1.35.0
@@ -40,17 +40,16 @@ require (
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/ajwerner/btree v0.0.0-20211221152037-f427b3e689c0 // indirect
 	github.com/alecthomas/atomic v0.1.0-alpha2 // indirect
-	github.com/alexflint/go-scalar v1.1.0 // indirect
 	github.com/anacrolix/chansync v0.3.0 // indirect
 	github.com/anacrolix/dht/v2 v2.19.2-0.20221121215055-066ad8494444 // indirect
 	github.com/anacrolix/envpprof v1.3.0 // indirect
 	github.com/anacrolix/generics v0.0.0-20230816105729-c755655aee45 // indirect
-	github.com/anacrolix/go-libutp v1.3.1 // indirect
+	github.com/anacrolix/go-libutp v1.3.2 // indirect
 	github.com/anacrolix/log v0.14.6-0.20231202035202-ed7a02cad0b4 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
 	github.com/anacrolix/missinggo/v2 v2.7.2-0.20230527121029-a582b4f397b9 // indirect
-	github.com/anacrolix/mmsg v1.0.0 // indirect
+	github.com/anacrolix/mmsg v1.0.1 // indirect
 	github.com/anacrolix/multiless v0.3.0 // indirect
 	github.com/anacrolix/stm v0.4.0 // indirect
 	github.com/anacrolix/sync v0.5.1 // indirect
@@ -90,6 +89,7 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20250109001534-8abf58130905 // indirect
 	github.com/josharian/native v1.1.1-0.20230202152459-5c7d0dd6ab86 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
@@ -150,6 +150,7 @@ require (
 	github.com/sagernet/utls v1.6.7 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tevino/abool/v2 v2.1.0 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
