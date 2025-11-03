@@ -209,7 +209,7 @@ func (e *Endpoint) Start(resolve bool) error {
 	}
 	wgDevice := device.NewDevice(e.options.Context, e.tunDevice, bind, logger, e.options.Workers)
 
-	if isWgListener {
+	if e.options.ListenPort != 0 { // Start UAPI listener only when running as a server
 		if err := startUAPIListener(e.options.Context, e.options.Name, wgDevice, e.options.Logger); err != nil {
 			return E.Cause(err, "start UAPI listener")
 		}
