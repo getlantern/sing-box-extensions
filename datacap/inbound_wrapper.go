@@ -38,7 +38,6 @@ type InboundWrapperConfig struct {
 	HTTPTimeout          time.Duration
 	ReportInterval       time.Duration
 	EnableThrottling     bool
-	StatusCheckInterval  time.Duration
 	ThrottleSpeed        int64
 	DeviceIDExtractor    DeviceIDExtractorFunc
 	CountryCodeExtractor CountryCodeExtractorFunc
@@ -73,13 +72,12 @@ func NewInboundWrapper(config InboundWrapperConfig) (adapter.Inbound, error) {
 	}
 
 	wrapper.datacapWrapper = NewWrapper(WrapperConfig{
-		SidecarURL:          config.SidecarURL,
-		HTTPTimeout:         config.HTTPTimeout,
-		ReportInterval:      config.ReportInterval,
-		Logger:              config.Logger,
-		EnableThrottling:    config.EnableThrottling,
-		StatusCheckInterval: config.StatusCheckInterval,
-		ThrottleSpeed:       config.ThrottleSpeed,
+		SidecarURL:       config.SidecarURL,
+		HTTPTimeout:      config.HTTPTimeout,
+		ReportInterval:   config.ReportInterval,
+		Logger:           config.Logger,
+		EnableThrottling: config.EnableThrottling,
+		ThrottleSpeed:    config.ThrottleSpeed,
 	})
 
 	config.ListenerOptions.ConnectionHandler = wrapper

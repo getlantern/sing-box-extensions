@@ -40,8 +40,4 @@ type DataCapInboundOptions struct {
 	// EnableThrottling enables automatic throttling based on datacap status
 	// Default: false
 	EnableThrottling bool `json:"enable_throttling,omitempty"`
-
-	// StatusCheckInterval specifies how often to check datacap status for throttling
-	// Default: "60s"
-	StatusCheckInterval string `json:"status_check_interval,omitempty"`
 }

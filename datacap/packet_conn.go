@@ -35,22 +35,20 @@ type PacketConn struct {
 
 	// Throttling
 	throttler         *Throttler
-	statusCheckTicker *time.Ticker
 	throttlingEnabled bool
 }
 
 // PacketConnConfig holds configuration for creating a datacap-tracked packet connection.
 type PacketConnConfig struct {
-	Conn                N.PacketConn
-	Client              *Client
-	DeviceID            string
-	CountryCode         string
-	Platform            string
-	Logger              log.ContextLogger
-	ReportInterval      time.Duration
-	EnableThrottling    bool
-	StatusCheckInterval time.Duration
-	ThrottleSpeed       int64
+	Conn             N.PacketConn
+	Client           *Client
+	DeviceID         string
+	CountryCode      string
+	Platform         string
+	Logger           log.ContextLogger
+	ReportInterval   time.Duration
+	EnableThrottling bool
+	ThrottleSpeed    int64
 }
 
 // NewPacketConn creates a new datacap-tracked packet connection wrapper.
@@ -60,11 +58,6 @@ func NewPacketConn(config PacketConnConfig) *PacketConn {
 	// Default report interval to 30 seconds if not specified
 	if config.ReportInterval == 0 {
 		config.ReportInterval = 30 * time.Second
-	}
-
-	// Default status check interval to 60 seconds if not specified
-	if config.StatusCheckInterval == 0 {
-		config.StatusCheckInterval = 60 * time.Second
 	}
 
 	conn := &PacketConn{
@@ -84,13 +77,6 @@ func NewPacketConn(config PacketConnConfig) *PacketConn {
 	// Start periodic reporting goroutine
 	conn.wg.Add(1)
 	go conn.periodicReport()
-
-	// Start periodic status checking if throttling is enabled
-	if conn.throttlingEnabled {
-		conn.statusCheckTicker = time.NewTicker(config.StatusCheckInterval)
-		conn.wg.Add(1)
-		go conn.periodicStatusCheck()
-	}
 
 	return conn
 }
@@ -143,11 +129,6 @@ func (c *PacketConn) Close() error {
 	// Stop the reporting ticker
 	c.reportTicker.Stop()
 
-	// Stop the status check ticker if enabled
-	if c.statusCheckTicker != nil {
-		c.statusCheckTicker.Stop()
-	}
-
 	// Cancel context to signal goroutines to stop
 	c.cancel()
 
@@ -169,51 +150,6 @@ func (c *PacketConn) periodicReport() {
 			return
 		case <-c.reportTicker.C:
 			c.sendReport()
-		}
-	}
-}
-
-// periodicStatusCheck runs in a goroutine and periodically checks datacap status for throttling.
-func (c *PacketConn) periodicStatusCheck() {
-	defer c.wg.Done()
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-c.statusCheckTicker.C:
-			c.checkAndApplyThrottling()
-		}
-	}
-}
-
-// checkAndApplyThrottling checks the datacap status and applies throttling if needed.
-func (c *PacketConn) checkAndApplyThrottling() {
-	status, err := c.GetStatus()
-	if err != nil {
-		c.logger.Debug("[datacap] failed to get status for throttling: ", err)
-		return
-	}
-
-	if status.Throttle {
-		throttleSpeed := int64(defaultThrottleSpeedKBps)
-
-		// Calculate percentage remaining
-		if status.CapLimit > 0 && status.RemainingBytes >= 0 {
-			percentRemaining := float64(status.RemainingBytes) / float64(status.CapLimit)
-
-			// Scale throttle speed based on remaining data percentage
-			throttleSpeed = int64(float64(maxThrottledSpeedMBps-minThrottledSpeedKBps)*percentRemaining) + int64(minThrottledSpeedKBps)
-		}
-
-		// Following http-proxy-lantern approach: asymmetric throttling
-		// When capped, only throttle downloads (reads), not uploads (writes)
-		c.throttler.EnableWithRates(throttleSpeed, defaultUploadSpeedMbps)
-		c.logger.Info("[datacap] throttling enabled for device ", c.deviceID,
-			" - downloads: ", throttleSpeed/1024, " KB/s, uploads: ", defaultUploadSpeedMbps/1024/1024, " Mbps (remaining: ", status.RemainingBytes, " bytes)")
-	} else {
-		if c.throttler.IsEnabled() {
-			c.throttler.Disable()
-			c.logger.Info("[datacap] throttling disabled for device ", c.deviceID)
 		}
 	}
 }

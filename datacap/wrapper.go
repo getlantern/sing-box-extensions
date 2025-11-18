@@ -12,36 +12,33 @@ import (
 // Wrapper provides optional datacap tracking for connections.
 // If datacap is not configured, it acts as a pass-through.
 type Wrapper struct {
-	client              *Client
-	logger              log.ContextLogger
-	reportInterval      time.Duration
-	enabled             bool
-	enableThrottling    bool
-	statusCheckInterval time.Duration
-	throttleSpeed       int64
+	client           *Client
+	logger           log.ContextLogger
+	reportInterval   time.Duration
+	enabled          bool
+	enableThrottling bool
+	throttleSpeed    int64
 }
 
 // WrapperConfig holds configuration for the datacap wrapper.
 type WrapperConfig struct {
-	SidecarURL          string // Empty means datacap disabled
-	HTTPTimeout         time.Duration
-	ReportInterval      time.Duration
-	Logger              log.ContextLogger
-	EnableThrottling    bool          // Enable automatic throttling based on datacap status
-	StatusCheckInterval time.Duration // How often to check status for throttling
-	ThrottleSpeed       int64         // Fixed throttle speed in bytes/sec (0 = auto-calculate)
+	SidecarURL       string // Empty means datacap disabled
+	HTTPTimeout      time.Duration
+	ReportInterval   time.Duration
+	Logger           log.ContextLogger
+	EnableThrottling bool  // Enable automatic throttling based on datacap status
+	ThrottleSpeed    int64 // Fixed throttle speed in bytes/sec (0 = auto-calculate)
 }
 
 // NewWrapper creates a new datacap wrapper.
 // If SidecarURL is empty, datacap is disabled and connections flow normally.
 func NewWrapper(config WrapperConfig) *Wrapper {
 	w := &Wrapper{
-		logger:              config.Logger,
-		reportInterval:      config.ReportInterval,
-		enabled:             config.SidecarURL != "",
-		enableThrottling:    config.EnableThrottling,
-		statusCheckInterval: config.StatusCheckInterval,
-		throttleSpeed:       config.ThrottleSpeed,
+		logger:           config.Logger,
+		reportInterval:   config.ReportInterval,
+		enabled:          config.SidecarURL != "",
+		enableThrottling: config.EnableThrottling,
+		throttleSpeed:    config.ThrottleSpeed,
 	}
 
 	// Only create client if datacap is enabled
@@ -67,15 +64,14 @@ func (w *Wrapper) WrapConn(conn net.Conn, deviceID, countryCode string) net.Conn
 	}
 
 	return NewConn(ConnConfig{
-		Conn:                conn,
-		Client:              w.client,
-		DeviceID:            deviceID,
-		CountryCode:         countryCode,
-		Logger:              w.logger,
-		ReportInterval:      w.reportInterval,
-		EnableThrottling:    w.enableThrottling,
-		StatusCheckInterval: w.statusCheckInterval,
-		ThrottleSpeed:       w.throttleSpeed,
+		Conn:             conn,
+		Client:           w.client,
+		DeviceID:         deviceID,
+		CountryCode:      countryCode,
+		Logger:           w.logger,
+		ReportInterval:   w.reportInterval,
+		EnableThrottling: w.enableThrottling,
+		ThrottleSpeed:    w.throttleSpeed,
 	})
 }
 
@@ -87,15 +83,14 @@ func (w *Wrapper) WrapPacketConn(conn N.PacketConn, deviceID, countryCode string
 	}
 
 	return NewPacketConn(PacketConnConfig{
-		Conn:                conn,
-		Client:              w.client,
-		DeviceID:            deviceID,
-		CountryCode:         countryCode,
-		Logger:              w.logger,
-		ReportInterval:      w.reportInterval,
-		EnableThrottling:    w.enableThrottling,
-		StatusCheckInterval: w.statusCheckInterval,
-		ThrottleSpeed:       w.throttleSpeed,
+		Conn:             conn,
+		Client:           w.client,
+		DeviceID:         deviceID,
+		CountryCode:      countryCode,
+		Logger:           w.logger,
+		ReportInterval:   w.reportInterval,
+		EnableThrottling: w.enableThrottling,
+		ThrottleSpeed:    w.throttleSpeed,
 	})
 }
 

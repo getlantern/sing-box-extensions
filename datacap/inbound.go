@@ -23,18 +23,17 @@ func RegisterInbound(registry *inbound.Registry) {
 // Inbound represents a datacap wrapper inbound that tracks data consumption.
 type Inbound struct {
 	inbound.Adapter
-	ctx                 context.Context
-	logger              log.ContextLogger
-	listener            *listener.Listener
-	router              adapter.Router
-	datacapClient       *Client
-	reportInterval      time.Duration
-	deviceIDHeader      string
-	countryCodeHeader   string
-	platformHeader      string
-	enableThrottling    bool
-	statusCheckInterval time.Duration
-	extractor           *DeviceIDExtractor
+	ctx               context.Context
+	logger            log.ContextLogger
+	listener          *listener.Listener
+	router            adapter.Router
+	datacapClient     *Client
+	reportInterval    time.Duration
+	deviceIDHeader    string
+	countryCodeHeader string
+	platformHeader    string
+	enableThrottling  bool
+	extractor         *DeviceIDExtractor
 }
 
 // NewInbound creates a new datacap wrapper inbound adapter.
@@ -62,15 +61,6 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		httpTimeout = timeout
 	}
 
-	statusCheckInterval := 60 * time.Second
-	if options.StatusCheckInterval != "" {
-		interval, err := time.ParseDuration(options.StatusCheckInterval)
-		if err != nil {
-			return nil, E.New("invalid status_check_interval: ", err)
-		}
-		statusCheckInterval = interval
-	}
-
 	// Set default header names
 	deviceIDHeader := options.DeviceIDHeader
 	if deviceIDHeader == "" {
@@ -88,18 +78,17 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 	}
 
 	dcInbound := &Inbound{
-		Adapter:             inbound.NewAdapter(constant.TypeDataCap, tag),
-		ctx:                 ctx,
-		logger:              logger,
-		router:              router,
-		datacapClient:       NewClient(options.SidecarURL, httpTimeout),
-		reportInterval:      reportInterval,
-		deviceIDHeader:      deviceIDHeader,
-		countryCodeHeader:   countryCodeHeader,
-		platformHeader:      platformHeader,
-		enableThrottling:    options.EnableThrottling,
-		statusCheckInterval: statusCheckInterval,
-		extractor:           NewDeviceIDExtractor(deviceIDHeader, countryCodeHeader, platformHeader, logger),
+		Adapter:           inbound.NewAdapter(constant.TypeDataCap, tag),
+		ctx:               ctx,
+		logger:            logger,
+		router:            router,
+		datacapClient:     NewClient(options.SidecarURL, httpTimeout),
+		reportInterval:    reportInterval,
+		deviceIDHeader:    deviceIDHeader,
+		countryCodeHeader: countryCodeHeader,
+		platformHeader:    platformHeader,
+		enableThrottling:  options.EnableThrottling,
+		extractor:         NewDeviceIDExtractor(deviceIDHeader, countryCodeHeader, platformHeader, logger),
 	}
 
 	dcInbound.listener = listener.New(listener.Options{
@@ -131,15 +120,14 @@ func (i *Inbound) NewConnectionEx(ctx context.Context, conn net.Conn, metadata a
 
 	// Wrap connection with datacap tracking
 	datacapConn := NewConn(ConnConfig{
-		Conn:                conn,
-		Client:              i.datacapClient,
-		DeviceID:            deviceID,
-		CountryCode:         countryCode,
-		Platform:            platform,
-		Logger:              i.logger,
-		ReportInterval:      i.reportInterval,
-		EnableThrottling:    i.enableThrottling,
-		StatusCheckInterval: i.statusCheckInterval,
+		Conn:             conn,
+		Client:           i.datacapClient,
+		DeviceID:         deviceID,
+		CountryCode:      countryCode,
+		Platform:         platform,
+		Logger:           i.logger,
+		ReportInterval:   i.reportInterval,
+		EnableThrottling: i.enableThrottling,
 	})
 
 	// Route the wrapped connection
