@@ -5,6 +5,7 @@ const (
 	TypeALGeneva = "algeneva"
 	TypeOutline  = "outline"
 	TypeWATER    = "water"
+	TypeDataCap  = "datacap"
 )
 
 const (
