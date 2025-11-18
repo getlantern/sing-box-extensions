@@ -261,8 +261,12 @@ func (c *Conn) sendReport() {
 		BytesUsed:   totalConsumed,
 	}
 
-	// Use a timeout context for the report
-	reportCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Use the client's configured timeout for consistency
+	timeout := c.client.httpClient.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Second // Fallback if client has no timeout set
+	}
+	reportCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	status, err := c.client.ReportDataCapConsumption(reportCtx, report)
@@ -313,7 +317,12 @@ func (c *Conn) GetStatus() (*DataCapStatus, error) {
 		return nil, nil
 	}
 
-	statusCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Use the client's configured timeout for consistency
+	timeout := c.client.httpClient.Timeout
+	if timeout == 0 {
+		timeout = 5 * time.Second // Fallback if client has no timeout set
+	}
+	statusCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return c.client.GetDataCapStatus(statusCtx, c.deviceID)
