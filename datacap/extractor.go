@@ -35,6 +35,14 @@ func (e *DeviceIDExtractor) ExtractFromHTTPHeaders(conn net.Conn) (deviceID, cou
 		return "", "", "", &peekConn{conn, reader}
 	}
 
+	// Validate that we have enough bytes for a minimal HTTP request
+	// A minimal HTTP request is at least "GET / HTTP/1.0\r\n\r\n" (18 bytes)
+	const minHTTPRequestSize = 18
+	if len(peekBytes) < minHTTPRequestSize {
+		e.logger.Debug("peeked bytes too short for HTTP request: ", len(peekBytes), " bytes")
+		return "", "", "", &peekConn{conn, reader}
+	}
+
 	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(string(peekBytes))))
 	if err != nil {
 		e.logger.Debug("failed to parse HTTP request: ", err)

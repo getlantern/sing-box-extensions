@@ -10,6 +10,28 @@ import (
 	"github.com/sagernet/sing-box/log"
 )
 
+// Throttle speed constants for datacap enforcement
+const (
+	// Default throttle speed when user is capped (conservative browsing speed)
+	defaultThrottleSpeedKBps = 128 * 1024 // 128 KB/s
+
+	// Maximum download speed when throttled (at high remaining percentage)
+	maxThrottledSpeedMBps = 5 * 1024 * 1024 // 5 MB/s
+
+	// Minimum download speed when throttled (at very low remaining percentage)
+	minThrottledSpeedKBps = 64 * 1024 // 64 KB/s
+
+	// Default upload speed (not throttled to allow user uploads even when capped)
+	defaultUploadSpeedMbps = 5 * 1024 * 1024 // 5 Mbps
+
+	// Throttle speed tiers based on remaining percentage
+	highRemainingThresholdPct   = 0.2             // 20% remaining
+	mediumRemainingThresholdPct = 0.1             // 10% remaining
+	highTierSpeedMbps           = 5 * 1024 * 1024 // 5 Mbps
+	mediumTierSpeedMbps         = 2 * 1024 * 1024 // 2 Mbps
+	lowTierSpeedKBps            = 128 * 1024      // 128 KB/s
+)
+
 // Conn wraps a net.Conn and tracks data consumption for datacap reporting.
 type Conn struct {
 	net.Conn
@@ -29,7 +51,7 @@ type Conn struct {
 	reportTicker *time.Ticker
 	reportMutex  sync.Mutex
 	closed       atomic.Bool
-
+	wg           sync.WaitGroup
 	// Throttling
 	throttler         *Throttler
 	statusCheckTicker *time.Ticker
@@ -79,11 +101,13 @@ func NewConn(config ConnConfig) *Conn {
 	}
 
 	// Start periodic reporting goroutine
+	conn.wg.Add(1)
 	go conn.periodicReport()
 
 	// Start periodic status checking if throttling is enabled
 	if conn.throttlingEnabled {
 		conn.statusCheckTicker = time.NewTicker(config.StatusCheckInterval)
+		conn.wg.Add(1)
 		go conn.periodicStatusCheck()
 	}
 
@@ -124,7 +148,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		}
 	}
 	return
-} // Close stops reporting and closes the underlying connection.
+}
+
+// Close stops reporting and closes the underlying connection.
 func (c *Conn) Close() error {
 	if c.closed.Swap(true) {
 		return nil // Already closed
@@ -138,8 +164,11 @@ func (c *Conn) Close() error {
 		c.statusCheckTicker.Stop()
 	}
 
-	// Cancel context to stop reporting goroutine
+	// Cancel context to signal goroutines to stop
 	c.cancel()
+
+	// Wait for all goroutines to finish
+	c.wg.Wait()
 
 	// Send final report
 	c.sendReport()
@@ -149,6 +178,7 @@ func (c *Conn) Close() error {
 
 // periodicReport runs in a goroutine and periodically reports data consumption.
 func (c *Conn) periodicReport() {
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -161,6 +191,7 @@ func (c *Conn) periodicReport() {
 
 // periodicStatusCheck runs in a goroutine and periodically checks datacap status for throttling.
 func (c *Conn) periodicStatusCheck() {
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -180,27 +211,22 @@ func (c *Conn) checkAndApplyThrottling() {
 	}
 
 	if status.Throttle {
-		// Calculate throttle speed based on remaining data
-		// Default: throttle to 128 KB/s (conservative browsing speed)
-		throttleSpeed := int64(128 * 1024) // 128 KB/s
+		throttleSpeed := int64(defaultThrottleSpeedKBps)
 
 		// Calculate percentage remaining
 		if status.CapLimit > 0 && status.RemainingBytes >= 0 {
 			percentRemaining := float64(status.RemainingBytes) / float64(status.CapLimit)
 
-			// Scale throttle speed: 50% remaining = 512 KB/s, 10% = 128 KB/s, etc.
-			maxSpeed := int64(1024 * 1024) // 1 MB/s max when throttled
-			minSpeed := int64(64 * 1024)   // 64 KB/s minimum
-			throttleSpeed = int64(float64(maxSpeed-minSpeed)*percentRemaining) + minSpeed
+			// Scale throttle speed based on remaining data percentage
+			throttleSpeed = int64(float64(maxThrottledSpeedMBps-minThrottledSpeedKBps)*percentRemaining) + int64(minThrottledSpeedKBps)
 		}
 
 		// Following http-proxy-lantern approach: asymmetric throttling
 		// When capped, only throttle downloads (reads), not uploads (writes)
 		// This allows users to upload content even when capped
-		defaultRate := int64(5 * 1024 * 1024) // 5 Mbps default for uploads
-		c.throttler.EnableWithRates(throttleSpeed, defaultRate)
+		c.throttler.EnableWithRates(throttleSpeed, defaultUploadSpeedMbps)
 		c.logger.Info("[datacap] throttling enabled for device ", c.deviceID,
-			" - downloads: ", throttleSpeed/1024, " KB/s, uploads: ", defaultRate/1024/1024, " Mbps (remaining: ", status.RemainingBytes, " bytes)")
+			" - downloads: ", throttleSpeed/1024, " KB/s, uploads: ", defaultUploadSpeedMbps/1024/1024, " Mbps (remaining: ", status.RemainingBytes, " bytes)")
 	} else {
 		if c.throttler.IsEnabled() {
 			c.throttler.Disable()
@@ -239,11 +265,44 @@ func (c *Conn) sendReport() {
 	reportCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := c.client.ReportDataCapConsumption(reportCtx, report); err != nil {
+	status, err := c.client.ReportDataCapConsumption(reportCtx, report)
+	if err != nil {
 		// Just log the error, don't fail the connection
 		c.logger.Debug("failed to report datacap consumption (non-fatal): ", err)
 	} else {
 		c.logger.Debug("reported datacap consumption: ", totalConsumed, " bytes (sent: ", sent, ", received: ", received, ") for device ", c.deviceID)
+		// Update internal state with response from sidecar
+		if status != nil {
+			c.updateThrottleState(status)
+		}
+	}
+}
+
+// updateThrottleState updates the throttling configuration based on the current status.
+func (c *Conn) updateThrottleState(status *DataCapStatus) {
+	if !c.throttlingEnabled || c.throttler == nil {
+		return
+	}
+
+	if status.Throttle && status.RemainingBytes > 0 && status.CapLimit > 0 {
+		// Calculate remaining percentage
+		remainingPct := float64(status.RemainingBytes) / float64(status.CapLimit)
+
+		// Adjust throttle speed based on remaining percentage tiers
+		var throttleSpeed int64
+		if remainingPct > highRemainingThresholdPct {
+			throttleSpeed = highTierSpeedMbps
+		} else if remainingPct > mediumRemainingThresholdPct {
+			throttleSpeed = mediumTierSpeedMbps
+		} else {
+			throttleSpeed = lowTierSpeedKBps
+		}
+
+		c.throttler.EnableWithRates(throttleSpeed, defaultUploadSpeedMbps)
+		c.logger.Debug("updated throttle speed to ", throttleSpeed, " bytes/s (remaining: ", remainingPct*100, "%)")
+	} else {
+		c.throttler.Disable()
+		c.logger.Debug("throttling disabled by sidecar")
 	}
 }
 

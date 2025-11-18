@@ -84,16 +84,6 @@ type DataCapReport struct {
 	BytesUsed   int64  `json:"bytesUsed"`
 }
 
-// DataCapTrackResponse represents the response from POST /data-cap/ endpoint.
-type DataCapTrackResponse struct {
-	Throttle       bool  `json:"throttle"`
-	RemainingBytes int64 `json:"remainingBytes"`
-	CapLimit       int64 `json:"capLimit"`
-	ExpiryTime     int64 `json:"expiryTime"`
-}
-
-// GetDataCapStatus queries the sidecar for current data cap status.
-// Endpoint: GET /data-cap/{deviceId}
 func (c *Client) GetDataCapStatus(ctx context.Context, deviceID string) (*DataCapStatus, error) {
 	url := fmt.Sprintf("%s/data-cap/%s", c.baseURL, deviceID)
 
@@ -125,38 +115,7 @@ func (c *Client) GetDataCapStatus(ctx context.Context, deviceID string) (*DataCa
 // ReportDataCapConsumption sends data consumption report to the sidecar.
 // Endpoint: POST /data-cap/
 // This tracks usage and returns updated cap status.
-func (c *Client) ReportDataCapConsumption(ctx context.Context, report *DataCapReport) error {
-	url := fmt.Sprintf("%s/data-cap/", c.baseURL)
-
-	jsonData, err := json.Marshal(report)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to report datacap consumption: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("datacap report request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
-
-// TrackAndGetStatus is a convenience method that reports usage and gets updated status in one call.
-// This uses the POST /data-cap/ endpoint which returns the updated status after tracking.
-func (c *Client) TrackAndGetStatus(ctx context.Context, report *DataCapReport) (*DataCapTrackResponse, error) {
+func (c *Client) ReportDataCapConsumption(ctx context.Context, report *DataCapReport) (*DataCapStatus, error) {
 	url := fmt.Sprintf("%s/data-cap/", c.baseURL)
 
 	jsonData, err := json.Marshal(report)
@@ -173,19 +132,19 @@ func (c *Client) TrackAndGetStatus(ctx context.Context, report *DataCapReport) (
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to track datacap and get status: %w", err)
+		return nil, fmt.Errorf("failed to report datacap consumption: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("datacap track request failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("datacap report request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var trackResp DataCapTrackResponse
-	if err := json.NewDecoder(resp.Body).Decode(&trackResp); err != nil {
-		return nil, fmt.Errorf("failed to decode datacap track response: %w", err)
+	var status DataCapStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, fmt.Errorf("failed to decode datacap status: %w", err)
 	}
 
-	return &trackResp, nil
+	return &status, nil
 }

@@ -22,7 +22,9 @@ func TestDataCapClient(t *testing.T) {
 			w.Write([]byte(`{"throttle":false,"remainingBytes":9663676416,"capLimit":10737418240,"expiryTime":1700179200}`))
 		} else if r.URL.Path == "/data-cap/" && r.Method == http.MethodPost {
 			reportCalled = true
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"throttle":false,"remainingBytes":9663676416,"capLimit":10737418240,"expiryTime":1700179200}`))
 		} else {
 			t.Errorf("unexpected path: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -70,13 +72,17 @@ func TestDataCapClient(t *testing.T) {
 		BytesUsed:   1048576,
 	}
 
-	err = client.ReportDataCapConsumption(ctx, report)
+	status, err = client.ReportDataCapConsumption(ctx, report)
 	if err != nil {
 		t.Fatalf("ReportDataCapConsumption failed: %v", err)
 	}
 
 	if !reportCalled {
 		t.Error("report endpoint was not called")
+	}
+
+	if status == nil {
+		t.Fatal("expected status response, got nil")
 	}
 }
 
@@ -176,7 +182,9 @@ func TestDataCapReportWithPlatform(t *testing.T) {
 				}
 			}
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"throttle":false,"remainingBytes":9663676416,"capLimit":10737418240,"expiryTime":1700179200}`))
 	}))
 	defer server.Close()
 
@@ -190,7 +198,7 @@ func TestDataCapReportWithPlatform(t *testing.T) {
 		BytesUsed:   1048576,
 	}
 
-	err := client.ReportDataCapConsumption(ctx, report)
+	_, err := client.ReportDataCapConsumption(ctx, report)
 	if err != nil {
 		t.Fatalf("ReportDataCapConsumption failed: %v", err)
 	}
@@ -201,43 +209,6 @@ func TestDataCapReportWithPlatform(t *testing.T) {
 
 	if receivedPlatform != "ios" {
 		t.Errorf("expected platform=ios, got %s", receivedPlatform)
-	}
-}
-
-func TestTrackAndGetStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/data-cap/" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			// Return updated status after tracking
-			w.Write([]byte(`{"throttle":true,"remainingBytes":500000,"capLimit":1073741824,"expiryTime":1700179200}`))
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL, 5*time.Second)
-	ctx := context.Background()
-
-	report := &DataCapReport{
-		DeviceID:    "test-device",
-		CountryCode: "US",
-		Platform:    "android",
-		BytesUsed:   573741824,
-	}
-
-	response, err := client.TrackAndGetStatus(ctx, report)
-	if err != nil {
-		t.Fatalf("TrackAndGetStatus failed: %v", err)
-	}
-
-	if !response.Throttle {
-		t.Error("expected throttle=true in response")
-	}
-
-	if response.RemainingBytes != 500000 {
-		t.Errorf("expected remainingBytes=500000, got %d", response.RemainingBytes)
 	}
 }
 
