@@ -62,7 +62,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		httpTimeout = timeout
 	}
 
-	statusCheckInterval := 30 * time.Second
+	statusCheckInterval := 60 * time.Second
 	if options.StatusCheckInterval != "" {
 		interval, err := time.ParseDuration(options.StatusCheckInterval)
 		if err != nil {
