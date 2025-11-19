@@ -6,12 +6,12 @@ import (
 	"github.com/sagernet/sing-box/adapter/outbound"
 	"github.com/sagernet/sing-box/include"
 
+	"github.com/getlantern/sing-box-extensions/datacap"
+	"github.com/getlantern/sing-box-extensions/protocol/algeneva"
 	"github.com/getlantern/sing-box-extensions/protocol/amnezia"
 	"github.com/getlantern/sing-box-extensions/protocol/group"
-	"github.com/getlantern/sing-box-extensions/protocol/water"
-
-	"github.com/getlantern/sing-box-extensions/protocol/algeneva"
 	"github.com/getlantern/sing-box-extensions/protocol/outline"
+	"github.com/getlantern/sing-box-extensions/protocol/water"
 )
 
 var supportedProtocols = []string{
@@ -19,6 +19,7 @@ var supportedProtocols = []string{
 	"algeneva",
 	"amnezia",
 	"outline",
+	"water",
 
 	// sing-box built-in protocols
 	"http",
@@ -42,6 +43,7 @@ func GetRegistries() (*inbound.Registry, *outbound.Registry, *endpoint.Registry)
 	endpointRegistry := include.EndpointRegistry()
 
 	registerInbounds(inboundRegistry)
+	registerMiddleware(inboundRegistry)
 	registerOutbounds(outboundRegistry)
 	registerEndpoints(endpointRegistry)
 
@@ -53,6 +55,11 @@ func GetRegistries() (*inbound.Registry, *outbound.Registry, *endpoint.Registry)
 func registerInbounds(registry *inbound.Registry) {
 	algeneva.RegisterInbound(registry)
 	water.RegisterInbound(registry)
+}
+
+func registerMiddleware(registry *inbound.Registry) {
+	// Middleware components that track/monitor connections
+	datacap.RegisterInbound(registry)
 }
 
 func registerOutbounds(registry *outbound.Registry) {
