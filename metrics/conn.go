@@ -26,7 +26,7 @@ func NewConn(conn net.Conn, metadata *adapter.InboundContext) net.Conn {
 	attrOpt := metric.WithAttributes(attributes...)
 	// prealloc attr slices to avoid doing that on each read/write
 	readAttrs := metric.WithAttributes(append(slices.Clone(attributes), attribute.String("direction", "receive"))...)
-	writeAttrs := metric.WithAttributes(append(attributes, attribute.String("direction", "transmit"))...)
+	writeAttrs := metric.WithAttributes(append(slices.Clone(attributes), attribute.String("direction", "transmit"))...)
 	metrics.proxyConnections.Add(context.Background(), 1, attrOpt)
 	return &Conn{
 		Conn:       conn,
