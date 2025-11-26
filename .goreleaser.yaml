@@ -5,7 +5,7 @@ metadata:
   maintainers:
     - "Lantern Team <dev@getlantern.org>"
   description: Sing Box Extensions
-  homepage: "https://github.com/getlantern/sing-box-extensions"
+  homepage: "https://github.com/getlantern/lantern-box"
   license: "GPL"
 
 builds:
@@ -20,7 +20,7 @@ builds:
     env:
       - CGO_ENABLED=1
     ldflags:
-      - -X github.com/sagernet/sing-box/constant.Version={{ .Version }} -s -w -buildid=
+      - -X github.com/getlantern/lantern-box/constant.Version={{ .Version }} -s -w -buildid=
     tags:
       - with_gvisor
       - with_quic
@@ -57,7 +57,7 @@ nfpms:
     description: |
       Sing Box Extensions
     vendor: "Brave New Software"
-    homepage: "https://github.com/getlantern/sing-box-extensions"
+    homepage: "https://github.com/getlantern/lantern-box"
     license: "GPL"
     contents:
       - src: cmd/sing-box-extensions/release/sing-box-extensions.service
@@ -70,7 +70,6 @@ furies:
     formats:
       - deb
       - rpm
-
 
 dockers:
   - image_templates:
