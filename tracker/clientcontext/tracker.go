@@ -84,6 +84,9 @@ func (t *ClientContextTracker) RoutedPacketConnection(
 	matchedRule adapter.Rule,
 	matchOutbound adapter.Outbound,
 ) N.PacketConn {
+	if !t.match(metadata.Inbound, matchOutbound.Tag()) {
+		return conn
+	}
 	if t.isReader {
 		return newReadPacketConn(ctx, conn)
 	}
@@ -152,17 +155,19 @@ func (c *writeConn) sendInfo(conn net.Conn) error {
 	if err != nil {
 		return fmt.Errorf("marshaling client info: %w", err)
 	}
-	_, err = conn.Write(buf)
+	if _, err = conn.Write(buf); err != nil {
+		return fmt.Errorf("writing client info: %w", err)
+	}
 
 	// wait for `OK` response
-	buf = buf[:2]
-	if _, err := conn.Read(buf); err != nil {
+	resp := make([]byte, 2)
+	if _, err := conn.Read(resp); err != nil {
 		return fmt.Errorf("reading server response: %w", err)
 	}
-	if string(buf) != "OK" {
-		return fmt.Errorf("invalid server response: %s", buf)
+	if string(resp) != "OK" {
+		return fmt.Errorf("invalid server response: %s", resp)
 	}
-	return err
+	return nil
 }
 
 type readPacketConn struct {
@@ -237,20 +242,20 @@ func (c *writePacketConn) PacketConnHandshakeSuccess(conn net.PacketConn) error 
 func (c *writePacketConn) sendInfo(conn net.PacketConn) error {
 	buf, err := json.Marshal(c.info)
 	if err != nil {
-		return fmt.Errorf("encoding client info: %w", err)
+		return fmt.Errorf("marshaling client info: %w", err)
 	}
 	_, err = conn.WriteTo(buf, c.metadata.Destination)
 	if err != nil {
-		return fmt.Errorf("writing packet to client: %w", err)
+		return fmt.Errorf("writing packet: %w", err)
 	}
 
 	// wait for `OK` response
-	buf = buf[:2]
-	if _, _, err := conn.ReadFrom(buf); err != nil {
-		return fmt.Errorf("reading server response: %w", err)
+	resp := make([]byte, 2)
+	if _, _, err := conn.ReadFrom(resp); err != nil {
+		return fmt.Errorf("reading response: %w", err)
 	}
-	if string(buf) != "OK" {
-		return fmt.Errorf("invalid server response: %s", buf)
+	if string(resp) != "OK" {
+		return fmt.Errorf("invalid response: %s", buf)
 	}
 	return nil
 }
