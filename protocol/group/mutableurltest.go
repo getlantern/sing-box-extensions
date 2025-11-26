@@ -28,7 +28,7 @@ import (
 	"github.com/getlantern/lantern-box/adapter"
 	"github.com/getlantern/lantern-box/constant"
 	isync "github.com/getlantern/lantern-box/internal/sync"
-	sbxL "github.com/getlantern/lantern-box/log"
+	lLog "github.com/getlantern/lantern-box/log"
 	"github.com/getlantern/lantern-box/option"
 )
 
@@ -69,8 +69,8 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 	}
 
 	log := logger
-	if slogger, ok := logger.(sbxL.SLogger); ok {
-		nfact := sbxL.NewFactory(slogger.SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
+	if slogger, ok := logger.(lLog.SLogger); ok {
+		nfact := lLog.NewFactory(slogger.SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
 		log = nfact.Logger()
 	}
 	outboundMgr := service.FromContext[A.OutboundManager](ctx)
