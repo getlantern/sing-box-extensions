@@ -25,11 +25,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/getlantern/sing-box-extensions/adapter"
-	"github.com/getlantern/sing-box-extensions/constant"
-	isync "github.com/getlantern/sing-box-extensions/internal/sync"
-	sbxL "github.com/getlantern/sing-box-extensions/log"
-	"github.com/getlantern/sing-box-extensions/option"
+	"github.com/getlantern/lantern-box/adapter"
+	"github.com/getlantern/lantern-box/constant"
+	isync "github.com/getlantern/lantern-box/internal/sync"
+	lLog "github.com/getlantern/lantern-box/log"
+	"github.com/getlantern/lantern-box/option"
 )
 
 func RegisterMutableURLTest(registry *outbound.Registry) {
@@ -69,8 +69,8 @@ func NewMutableURLTest(ctx context.Context, _ A.Router, logger log.ContextLogger
 	}
 
 	log := logger
-	if slogger, ok := logger.(sbxL.SLogger); ok {
-		nfact := sbxL.NewFactory(slogger.SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
+	if slogger, ok := logger.(lLog.SLogger); ok {
+		nfact := lLog.NewFactory(slogger.SlogHandler().WithAttrs([]slog.Attr{slog.String("urltest_group", tag)}))
 		log = nfact.Logger()
 	}
 	outboundMgr := service.FromContext[A.OutboundManager](ctx)
