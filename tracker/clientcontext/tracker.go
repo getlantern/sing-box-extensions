@@ -1,0 +1,256 @@
+// Package clientcontext provides a [adapter.ConnectionTracker] that sends and receives client
+// metadata after connection handshake. The metadata is stored in the context for other trackers
+// to use.
+//
+// To use this tracker, create a [ClientContextTracker] with either [NewClientContextTracker], for
+// clients, or [NewClientContextReader], for servers, then pass it to router.AppendTracker. The
+// metadata can be retrieved from the context using [service.PtrFromContext].
+// Note that both client and server sides must use this tracker for it to work.
+package clientcontext
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing/common/buf"
+	N "github.com/sagernet/sing/common/network"
+	"github.com/sagernet/sing/service"
+)
+
+var (
+	_ (adapter.ConnectionTracker)    = (*ClientContextTracker)(nil)
+	_ (N.ConnHandshakeSuccess)       = (*writeConn)(nil)
+	_ (N.PacketConnHandshakeSuccess) = (*writePacketConn)(nil)
+)
+
+// ClientInfo holds information about the client user/device.
+type ClientInfo struct {
+	DeviceID    string
+	Platform    string
+	IsPro       bool
+	CountryCode string
+	Version     string
+}
+
+// MatchBounds specifies inbound and outbound matching rules.
+// The empty string is treated as a wildcard.
+type MatchBounds struct {
+	Inbound  string
+	Outbound string
+}
+
+// ClientContextTracker tracks client context for connections.
+type ClientContextTracker struct {
+	info        ClientInfo
+	matchBounds MatchBounds
+	isReader    bool
+}
+
+// NewClientContextTracker creates a tracker for writing client info.
+func NewClientContextTracker(info ClientInfo, bounds MatchBounds) *ClientContextTracker {
+	return &ClientContextTracker{info: info, matchBounds: bounds}
+}
+
+// NewClientContextReader creates a tracker for reading client info.
+func NewClientContextReader(bounds MatchBounds) *ClientContextTracker {
+	return &ClientContextTracker{matchBounds: bounds, isReader: true}
+}
+
+// RoutedConnection wraps the connection for reading or writing client info.
+func (t *ClientContextTracker) RoutedConnection(
+	ctx context.Context,
+	conn net.Conn,
+	metadata adapter.InboundContext,
+	matchedRule adapter.Rule,
+	matchOutbound adapter.Outbound,
+) net.Conn {
+	if !t.match(metadata.Inbound, matchOutbound.Tag()) {
+		return conn
+	}
+	if t.isReader {
+		return newReadConn(ctx, conn)
+	}
+	return newWriteConn(ctx, conn, &t.info)
+}
+
+// RoutedPacketConnection wraps the packet connection for reading or writing client info.
+func (t *ClientContextTracker) RoutedPacketConnection(
+	ctx context.Context,
+	conn N.PacketConn,
+	metadata adapter.InboundContext,
+	matchedRule adapter.Rule,
+	matchOutbound adapter.Outbound,
+) N.PacketConn {
+	if t.isReader {
+		return newReadPacketConn(ctx, conn)
+	}
+	return newWritePacketConn(ctx, conn, metadata, &t.info)
+}
+
+func (t *ClientContextTracker) match(inbound, outbound string) bool {
+	mb := t.matchBounds
+	return (mb.Inbound == "" || inbound == mb.Inbound) &&
+		(mb.Outbound == "" || outbound == mb.Outbound)
+}
+
+type readConn struct {
+	net.Conn
+	ctx  context.Context
+	info *ClientInfo
+}
+
+// newReadConn creates a readConn and reads client info from it. If successful, the info is stored
+// in the context.
+func newReadConn(ctx context.Context, conn net.Conn) *readConn {
+	c := &readConn{Conn: conn, ctx: ctx}
+	info, err := c.readInfo()
+	if err == nil {
+		service.ContextWithPtr(ctx, info)
+	}
+	return c
+}
+
+// readInfo reads and decodes client info, then sends an OK response.
+func (c *readConn) readInfo() (*ClientInfo, error) {
+	var info ClientInfo
+	if err := json.NewDecoder(c).Decode(&info); err != nil {
+		return nil, fmt.Errorf("decoding client info: %w", err)
+	}
+	c.info = &info
+
+	// send `OK` response
+	if _, err := c.Write([]byte("OK")); err != nil {
+		return nil, fmt.Errorf("writing OK response to client: %w", err)
+	}
+	return &info, nil
+}
+
+type writeConn struct {
+	net.Conn
+	ctx  context.Context
+	info *ClientInfo
+}
+
+func newWriteConn(ctx context.Context, conn net.Conn, info *ClientInfo) *writeConn {
+	return &writeConn{Conn: conn, ctx: ctx, info: info}
+}
+
+// ConnHandshakeSuccess sends client info upon successful handshake.
+func (c *writeConn) ConnHandshakeSuccess(conn net.Conn) error {
+	if err := c.sendInfo(conn); err != nil {
+		return fmt.Errorf("sending client info: %w", err)
+	}
+	return nil
+}
+
+// sendInfo marshals and sends client info, then waits for OK.
+func (c *writeConn) sendInfo(conn net.Conn) error {
+	buf, err := json.Marshal(c.info)
+	if err != nil {
+		return fmt.Errorf("marshaling client info: %w", err)
+	}
+	_, err = conn.Write(buf)
+
+	// wait for `OK` response
+	buf = buf[:2]
+	if _, err := conn.Read(buf); err != nil {
+		return fmt.Errorf("reading server response: %w", err)
+	}
+	if string(buf) != "OK" {
+		return fmt.Errorf("invalid server response: %s", buf)
+	}
+	return err
+}
+
+type readPacketConn struct {
+	N.PacketConn
+	ctx  context.Context
+	info *ClientInfo
+}
+
+// newReadPacketConn creates a readPacketConn and reads client info from it. If successful, the
+// info is stored in the context.
+func newReadPacketConn(ctx context.Context, conn N.PacketConn) *readPacketConn {
+	c := &readPacketConn{PacketConn: conn, ctx: ctx}
+	info, err := c.readInfo()
+	if err != nil {
+		fmt.Printf("error reading client info: %v\n", err)
+		return c
+	}
+
+	service.ContextWithPtr(ctx, info)
+	return c
+}
+
+// readInfo reads and decodes client info, then sends an OK response.
+func (c *readPacketConn) readInfo() (*ClientInfo, error) {
+	buffer := buf.NewPacket()
+	defer buffer.Release()
+
+	destination, err := c.ReadPacket(buffer)
+	if err != nil {
+		return nil, fmt.Errorf("reading packet from client: %w", err)
+	}
+	var info ClientInfo
+	if err := json.Unmarshal(buffer.Bytes(), &info); err != nil {
+		return nil, fmt.Errorf("decoding client info: %w", err)
+	}
+	c.info = &info
+
+	// send `OK` response
+	buffer.Reset()
+	buffer.WriteString("OK")
+	if err := c.WritePacket(buffer, destination); err != nil {
+		return nil, fmt.Errorf("writing OK response to client: %w", err)
+	}
+	return &info, nil
+}
+
+type writePacketConn struct {
+	N.PacketConn
+	ctx      context.Context
+	metadata adapter.InboundContext
+	info     *ClientInfo
+}
+
+func newWritePacketConn(ctx context.Context, conn N.PacketConn, metadata adapter.InboundContext, info *ClientInfo) *writePacketConn {
+	return &writePacketConn{
+		PacketConn: conn,
+		ctx:        ctx,
+		metadata:   metadata,
+		info:       info,
+	}
+}
+
+// PacketConnHandshakeSuccess sends client info upon successful handshake.
+func (c *writePacketConn) PacketConnHandshakeSuccess(conn net.PacketConn) error {
+	if err := c.sendInfo(conn); err != nil {
+		return fmt.Errorf("sending client info: %w", err)
+	}
+	return nil
+}
+
+// sendInfo marshals and sends client info, then waits for OK.
+func (c *writePacketConn) sendInfo(conn net.PacketConn) error {
+	buf, err := json.Marshal(c.info)
+	if err != nil {
+		return fmt.Errorf("encoding client info: %w", err)
+	}
+	_, err = conn.WriteTo(buf, c.metadata.Destination)
+	if err != nil {
+		return fmt.Errorf("writing packet to client: %w", err)
+	}
+
+	// wait for `OK` response
+	buf = buf[:2]
+	if _, _, err := conn.ReadFrom(buf); err != nil {
+		return fmt.Errorf("reading server response: %w", err)
+	}
+	if string(buf) != "OK" {
+		return fmt.Errorf("invalid server response: %s", buf)
+	}
+	return nil
+}
