@@ -163,6 +163,7 @@ func buildMeterProvider(endpoint string) {
 
 	exp, err := otlpmetrichttp.New(context.Background(), metricOpts...)
 	if err != nil {
+		log.Error("Unable to initialize OpenTelemetry metrics exporter for %v: %v", endpoint, err)
 		return
 	}
 
