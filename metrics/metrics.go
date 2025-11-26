@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/sagernet/sing-box/log"
 )
@@ -38,7 +38,7 @@ type metricsManager struct {
 }
 
 const (
-	defaultTeleportHost = "telemetry.iantem.io:443"
+	defaultTelemetryHost = "telemetry.iantem.io:443"
 )
 
 // getTelemetryEndpoint returns the OTEL endpoint to use for telemetry.
@@ -48,7 +48,7 @@ func getTelemetryEndpoint() string {
 	if endpoint := os.Getenv("CUSTOM_OTLP_ENDPOINT"); endpoint != "" {
 		return endpoint
 	}
-	return defaultTeleportHost
+	return defaultTelemetryHost
 }
 
 var metrics = NewMetricsManager()
@@ -118,7 +118,7 @@ func buildTracerProvider(endpoint string) {
 	// Create an exporter that exports to the OTEL collector
 	exporter, err := otlptrace.New(context.Background(), client)
 	if err != nil {
-		log.Error("Unable to initialize OpenTelemetry, will not report traces to %v: %v", endpoint, err)
+		log.Error("Unable to initialize OpenTelemetry, will not report traces to %v", endpoint)
 		return
 	}
 	log.Debug("Will report traces to OpenTelemetry at %v", endpoint)
@@ -129,7 +129,6 @@ func buildTracerProvider(endpoint string) {
 			exporter,
 			sdktrace.WithBatchTimeout(batchTimeout),
 			sdktrace.WithMaxQueueSize(maxQueueSize),
-			sdktrace.WithBlocking(), // it's okay to use blocking mode right now because we're just submitting bandwidth data in a goroutine that doesn't block real work
 		),
 		sdktrace.WithResource(buildResource()),
 	)
@@ -163,7 +162,6 @@ func buildMeterProvider(endpoint string) {
 
 	exp, err := otlpmetrichttp.New(context.Background(), metricOpts...)
 	if err != nil {
-		log.Error("Unable to initialize OpenTelemetry metrics exporter for %v: %v", endpoint, err)
 		return
 	}
 
