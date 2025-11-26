@@ -1,4 +1,4 @@
-module github.com/getlantern/sing-box-extensions
+module github.com/getlantern/lantern-box
 
 go 1.23.6
 

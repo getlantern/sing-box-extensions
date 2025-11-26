@@ -8,7 +8,7 @@ import (
 	box "github.com/sagernet/sing-box"
 	"github.com/spf13/cobra"
 
-	"github.com/getlantern/sing-box-extensions/protocol"
+	"github.com/getlantern/lantern-box/protocol"
 )
 
 var globalCtx context.Context

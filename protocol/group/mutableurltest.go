@@ -25,11 +25,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/getlantern/sing-box-extensions/adapter"
-	"github.com/getlantern/sing-box-extensions/constant"
-	isync "github.com/getlantern/sing-box-extensions/internal/sync"
-	sbxL "github.com/getlantern/sing-box-extensions/log"
-	"github.com/getlantern/sing-box-extensions/option"
+	"github.com/getlantern/lantern-box/adapter"
+	"github.com/getlantern/lantern-box/constant"
+	isync "github.com/getlantern/lantern-box/internal/sync"
+	sbxL "github.com/getlantern/lantern-box/log"
+	"github.com/getlantern/lantern-box/option"
 )
 
 func RegisterMutableURLTest(registry *outbound.Registry) {
