@@ -1,4 +1,4 @@
-package sbx
+package box
 
 import (
 	"context"
