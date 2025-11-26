@@ -118,7 +118,7 @@ func buildTracerProvider(endpoint string) {
 	// Create an exporter that exports to the OTEL collector
 	exporter, err := otlptrace.New(context.Background(), client)
 	if err != nil {
-		log.Error("Unable to initialize OpenTelemetry, will not report traces to %v", endpoint)
+		log.Error("Unable to initialize OpenTelemetry, will not report traces to %v: %v", endpoint, err)
 		return
 	}
 	log.Debug("Will report traces to OpenTelemetry at %v", endpoint)
