@@ -6,33 +6,55 @@
 package metrics
 
 import (
+	"context"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/getlantern/lantern-box/constant"
 	"github.com/sagernet/sing-box/adapter"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+
+	"github.com/sagernet/sing-box/log"
 )
 
 type metricsManager struct {
-	meter         metric.Meter
-	bytesSent     metric.Int64Counter
-	bytesReceived metric.Int64Counter
-	duration      metric.Int64Histogram
-	conns         metric.Int64UpDownCounter
+	meter            metric.Meter
+	duration         metric.Int64Histogram
+	proxyIO          metric.Int64Counter
+	proxyConnections metric.Int64Counter
 }
 
-var metrics = newMetricsManager()
+const (
+	defaultTeleportHost = "telemetry.iantem.io:443"
+)
 
-func newMetricsManager() *metricsManager {
-	meter := otel.GetMeterProvider().Meter("radiance")
-	bytesSent, err := meter.Int64Counter("sing.bytes_sent", metric.WithDescription("Bytes sent"))
-	if err != nil {
-		bytesSent = &noop.Int64Counter{}
+// getTelemetryEndpoint returns the OTEL endpoint to use for telemetry.
+// It checks the CUSTOM_OTLP_ENDPOINT environment variable first,
+// falling back to the default if not set.
+func getTelemetryEndpoint() string {
+	if endpoint := os.Getenv("CUSTOM_OTLP_ENDPOINT"); endpoint != "" {
+		return endpoint
 	}
-	bytesReceived, err := meter.Int64Counter("sing.bytes_received", metric.WithDescription("Bytes received"))
-	if err != nil {
-		bytesReceived = &noop.Int64Counter{}
-	}
+	return defaultTeleportHost
+}
+
+var metrics = NewMetricsManager()
+
+func NewMetricsManager() *metricsManager {
+	meter := otel.GetMeterProvider().Meter("")
 
 	// Track connection duration.
 	duration, err := meter.Int64Histogram("sing.connection_duration", metric.WithDescription("Connection duration"))
@@ -40,17 +62,23 @@ func newMetricsManager() *metricsManager {
 		duration = &noop.Int64Histogram{}
 	}
 
-	// Track the number of connections.
-	conns, err := meter.Int64UpDownCounter("sing.connections", metric.WithDescription("Number of connections"))
+	// Track bytes sent and received
+	proxyIO, err := meter.Int64Counter("proxy.io", metric.WithUnit("bytes"))
 	if err != nil {
-		conns = &noop.Int64UpDownCounter{}
+		proxyIO = &noop.Int64Counter{}
 	}
+	// Track number of proxy connections
+	proxyConnections, err := meter.Int64Counter("proxy.connections")
+	if err != nil {
+		proxyConnections = &noop.Int64Counter{}
+	}
+	buildTracerProvider(getTelemetryEndpoint())
+	buildMeterProvider(getTelemetryEndpoint())
 	return &metricsManager{
-		meter:         meter,
-		bytesSent:     bytesSent,
-		bytesReceived: bytesReceived,
-		duration:      duration,
-		conns:         conns,
+		meter:            meter,
+		duration:         duration,
+		proxyIO:          proxyIO,
+		proxyConnections: proxyConnections,
 	}
 }
 
@@ -66,4 +94,91 @@ func metadataToAttributes(metadata *adapter.InboundContext) []attribute.KeyValue
 		attribute.String("client", metadata.Client),
 		attribute.String("domain", metadata.Domain),
 	}
+}
+
+const (
+	batchTimeout = 1 * time.Minute
+	maxQueueSize = 10000
+)
+
+func buildTracerProvider(endpoint string) {
+	// Create HTTP client to talk to OTEL collector
+	clientOpts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(endpoint),
+	}
+
+	// If endpoint doesn't use port 443, assume insecure (HTTP not HTTPS)
+	if !strings.Contains(endpoint, ":443") {
+		log.Debug("Using insecure connection for OTEL endpoint %v", endpoint)
+		clientOpts = append(clientOpts, otlptracehttp.WithInsecure())
+	}
+
+	client := otlptracehttp.NewClient(clientOpts...)
+
+	// Create an exporter that exports to the OTEL collector
+	exporter, err := otlptrace.New(context.Background(), client)
+	if err != nil {
+		log.Error("Unable to initialize OpenTelemetry, will not report traces to %v", endpoint)
+		return
+	}
+	log.Debug("Will report traces to OpenTelemetry at %v", endpoint)
+
+	// Create a TracerProvider that uses the above exporter
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(
+			exporter,
+			sdktrace.WithBatchTimeout(batchTimeout),
+			sdktrace.WithMaxQueueSize(maxQueueSize),
+			sdktrace.WithBlocking(), // it's okay to use blocking mode right now because we're just submitting bandwidth data in a goroutine that doesn't block real work
+		),
+		sdktrace.WithResource(buildResource()),
+	)
+
+	// Set the TracerProvider as the global provider
+	otel.SetTracerProvider(tp)
+}
+
+func buildMeterProvider(endpoint string) {
+	metricOpts := []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpoint(endpoint),
+		otlpmetrichttp.WithTemporalitySelector(func(kind sdkmetric.InstrumentKind) metricdata.Temporality {
+			switch kind {
+			case
+				sdkmetric.InstrumentKindCounter,
+				sdkmetric.InstrumentKindUpDownCounter,
+				sdkmetric.InstrumentKindObservableCounter,
+				sdkmetric.InstrumentKindObservableUpDownCounter:
+				return metricdata.DeltaTemporality
+			default:
+				return metricdata.CumulativeTemporality
+			}
+		}),
+	}
+
+	// If endpoint doesn't use port 443, assume insecure (HTTP not HTTPS)
+	if !strings.Contains(endpoint, ":443") {
+		log.Debug("Using insecure connection for OTEL metrics endpoint %v", endpoint)
+		metricOpts = append(metricOpts, otlpmetrichttp.WithInsecure())
+	}
+
+	exp, err := otlpmetrichttp.New(context.Background(), metricOpts...)
+	if err != nil {
+		return
+	}
+
+	// Create a new meter provider
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)),
+		sdkmetric.WithResource(buildResource()),
+	)
+
+	// Set the meter provider as global
+	otel.SetMeterProvider(mp)
+}
+
+func buildResource() *resource.Resource {
+	return resource.NewWithAttributes(semconv.SchemaURL,
+		semconv.ServiceNameKey.String("sing-box"),
+		semconv.ServiceVersionKey.String(constant.Version),
+	)
 }

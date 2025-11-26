@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -13,17 +14,25 @@ import (
 // Conn wraps a net.Conn and tracks metrics such as bytes sent and received.
 type Conn struct {
 	net.Conn
-	attributes []attribute.KeyValue
+	attributes metric.MeasurementOption
+	readAttrs  metric.MeasurementOption
+	writeAttrs metric.MeasurementOption
 	startTime  time.Time
 }
 
 // NewConn creates a new Conn instance.
 func NewConn(conn net.Conn, metadata *adapter.InboundContext) net.Conn {
 	attributes := metadataToAttributes(metadata)
-	metrics.conns.Add(context.Background(), 1, metric.WithAttributes(attributes...))
+	attrOpt := metric.WithAttributes(attributes...)
+	// prealloc attr slices to avoid doing that on each read/write
+	readAttrs := metric.WithAttributes(append(slices.Clone(attributes), attribute.String("direction", "receive"))...)
+	writeAttrs := metric.WithAttributes(append(attributes, attribute.String("direction", "transmit"))...)
+	metrics.proxyConnections.Add(context.Background(), 1, attrOpt)
 	return &Conn{
 		Conn:       conn,
-		attributes: attributes,
+		readAttrs:  readAttrs,
+		writeAttrs: writeAttrs,
+		attributes: attrOpt,
 		startTime:  time.Now(),
 	}
 }
@@ -32,7 +41,7 @@ func NewConn(conn net.Conn, metadata *adapter.InboundContext) net.Conn {
 func (c *Conn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	if n > 0 {
-		metrics.bytesReceived.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
+		metrics.proxyIO.Add(context.Background(), int64(n), c.readAttrs)
 	}
 	return
 }
@@ -41,7 +50,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 func (c *Conn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	if n > 0 {
-		metrics.bytesSent.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
+		metrics.proxyIO.Add(context.Background(), int64(n), c.writeAttrs)
 	}
 	return
 }
@@ -49,7 +58,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 // Close overrides net.Conn's Close method to track connection duration.
 func (c *Conn) Close() error {
 	duration := time.Since(c.startTime).Milliseconds()
-	metrics.duration.Record(context.Background(), duration, metric.WithAttributes(c.attributes...))
-	metrics.conns.Add(context.Background(), -1, metric.WithAttributes(c.attributes...))
+	metrics.duration.Record(context.Background(), duration, c.attributes)
 	return c.Conn.Close()
 }

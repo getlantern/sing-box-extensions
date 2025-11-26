@@ -8,6 +8,7 @@ import (
 	box "github.com/sagernet/sing-box"
 	"github.com/spf13/cobra"
 
+	"github.com/getlantern/lantern-box/constant"
 	"github.com/getlantern/lantern-box/protocol"
 )
 
@@ -15,7 +16,7 @@ var globalCtx context.Context
 
 var rootCmd = &cobra.Command{
 	Use:               "sbx",
-	Version:           "v1.11.7",
+	Version:           constant.Version,
 	PersistentPreRun:  preRun,
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	SilenceErrors:     true,

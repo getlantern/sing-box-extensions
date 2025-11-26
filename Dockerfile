@@ -1,7 +1,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.24-bullseye as builder
 ARG TARGETOS TARGETARCH
 ARG GOPROXY=""
-
+ARG VERSION="dev"
 RUN set -ex \
     && apt-get update \
     && if [ "$TARGETARCH" = "arm64" ]; then \
@@ -25,7 +25,7 @@ RUN set -ex \
            export CC=gcc CXX=g++; \
        fi && \
        echo "Building for $GOOS/$GOARCH using CC=$CC CXX=$CXX" && \
-       go build -v -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_acme,with_clash_api" \
+       go build -v  -ldflags "-X github.com/getlantern/lantern-box/constant.Version=$VERSION" -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_acme,with_clash_api" \
        -o /usr/local/bin/sbx ./cmd/sing-box-extensions
 
 FROM debian:bullseye-slim
