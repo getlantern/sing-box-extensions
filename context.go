@@ -5,7 +5,7 @@ import (
 
 	box "github.com/sagernet/sing-box"
 
-	"github.com/getlantern/sing-box-extensions/protocol"
+	"github.com/getlantern/lantern-box/protocol"
 )
 
 // BoxContext returns a box context with the registered inbound, outbound, and endpoint protocols.
