@@ -38,25 +38,34 @@ type ClientInfo struct {
 // MatchBounds specifies inbound and outbound matching rules.
 // The empty string is treated as a wildcard.
 type MatchBounds struct {
-	Inbound  string
-	Outbound string
+	Inbound  []string
+	Outbound []string
 }
 
 // ClientContextTracker tracks client context for connections.
 type ClientContextTracker struct {
-	info        ClientInfo
-	matchBounds MatchBounds
-	isReader    bool
+	info         ClientInfo
+	inboundRule  *boundsRule
+	outboundRule *boundsRule
+	isReader     bool
 }
 
 // NewClientContextTracker creates a tracker for writing client info.
 func NewClientContextTracker(info ClientInfo, bounds MatchBounds) *ClientContextTracker {
-	return &ClientContextTracker{info: info, matchBounds: bounds}
+	return &ClientContextTracker{
+		info:         info,
+		inboundRule:  newBoundsRule(bounds.Inbound),
+		outboundRule: newBoundsRule(bounds.Outbound),
+	}
 }
 
 // NewClientContextReader creates a tracker for reading client info.
 func NewClientContextReader(bounds MatchBounds) *ClientContextTracker {
-	return &ClientContextTracker{matchBounds: bounds, isReader: true}
+	return &ClientContextTracker{
+		inboundRule:  newBoundsRule(bounds.Inbound),
+		outboundRule: newBoundsRule(bounds.Outbound),
+		isReader:     true,
+	}
 }
 
 // RoutedConnection wraps the connection for reading or writing client info.
@@ -67,7 +76,7 @@ func (t *ClientContextTracker) RoutedConnection(
 	matchedRule adapter.Rule,
 	matchOutbound adapter.Outbound,
 ) net.Conn {
-	if !t.match(metadata.Inbound, matchOutbound.Tag()) {
+	if !t.inboundRule.match(metadata.Inbound) || !t.outboundRule.match(matchOutbound.Tag()) {
 		return conn
 	}
 	if t.isReader {
@@ -84,7 +93,7 @@ func (t *ClientContextTracker) RoutedPacketConnection(
 	matchedRule adapter.Rule,
 	matchOutbound adapter.Outbound,
 ) N.PacketConn {
-	if !t.match(metadata.Inbound, matchOutbound.Tag()) {
+	if !t.inboundRule.match(metadata.Inbound) || !t.outboundRule.match(matchOutbound.Tag()) {
 		return conn
 	}
 	if t.isReader {
@@ -93,10 +102,31 @@ func (t *ClientContextTracker) RoutedPacketConnection(
 	return newWritePacketConn(ctx, conn, metadata, &t.info)
 }
 
-func (t *ClientContextTracker) match(inbound, outbound string) bool {
-	mb := t.matchBounds
-	return (mb.Inbound == "" || inbound == mb.Inbound) &&
-		(mb.Outbound == "" || outbound == mb.Outbound)
+func (t *ClientContextTracker) UpdateBounds(bounds MatchBounds) {
+	t.inboundRule = newBoundsRule(bounds.Inbound)
+	t.outboundRule = newBoundsRule(bounds.Outbound)
+}
+
+type boundsRule struct {
+	tags     []string
+	tagMap   map[string]bool
+	matchAny bool
+}
+
+func newBoundsRule(tags []string) *boundsRule {
+	br := &boundsRule{tags: tags, tagMap: make(map[string]bool)}
+	if len(tags) == 1 && (tags[0] == "" || tags[0] == "any") {
+		br.matchAny = true
+		return br
+	}
+	for _, tag := range tags {
+		br.tagMap[tag] = true
+	}
+	return br
+}
+
+func (b *boundsRule) match(tag string) bool {
+	return (b.matchAny && tag != "") || b.tagMap[tag]
 }
 
 type readConn struct {
