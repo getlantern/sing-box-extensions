@@ -12,6 +12,11 @@ import (
 )
 
 var globalCtx context.Context
+var (
+	version   string
+	commit    string
+	buildDate string
+)
 
 var rootCmd = &cobra.Command{
 	Use:               "lantern-box",

@@ -96,6 +96,7 @@ func closeMonitor(ctx context.Context) {
 }
 
 func run(configPath string) error {
+	log.Info("build info", version, commit, buildDate)
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(osSignals)
