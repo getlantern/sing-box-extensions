@@ -14,6 +14,7 @@ import (
 	sbox "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/constant"
+	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/common/json"
 	N "github.com/sagernet/sing/common/network"
@@ -34,7 +35,8 @@ func TestIntegration(t *testing.T) {
 		Version:     "9.0",
 	}
 	ctx := box.BoxContext()
-	clientTracker := NewClientContextTracker(cInfo, MatchBounds{[]string{"any"}, []string{"any"}})
+	logger := log.NewNOPFactory().NewLogger("")
+	clientTracker := NewClientContextTracker(cInfo, MatchBounds{[]string{"any"}, []string{"any"}}, logger)
 	clientOpts, clientBox := newTestBox(ctx, t, testOptionsPath+"/http_client.json", clientTracker)
 
 	httpInbound, exists := clientBox.Inbound().Get("http-client")
@@ -44,7 +46,7 @@ func TestIntegration(t *testing.T) {
 	// this cannot actually be empty or we would have failed to create the box instance
 	proxyAddr := getProxyAddress(clientOpts.Inbounds)
 
-	serverTracker := NewClientContextReader(MatchBounds{[]string{"any"}, []string{"any"}})
+	serverTracker := NewClientContextReader(MatchBounds{[]string{"any"}, []string{"any"}}, logger)
 	_, serverBox := newTestBox(ctx, t, testOptionsPath+"/http_server.json", serverTracker)
 
 	mTracker := &mockTracker{}

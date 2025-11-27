@@ -15,6 +15,7 @@ import (
 	"net"
 
 	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing/common/buf"
 	N "github.com/sagernet/sing/common/network"
 	"github.com/sagernet/sing/service"
@@ -47,23 +48,26 @@ type ClientContextTracker struct {
 	info         ClientInfo
 	inboundRule  *boundsRule
 	outboundRule *boundsRule
+	logger       log.ContextLogger
 	isReader     bool
 }
 
 // NewClientContextTracker creates a tracker for writing client info.
-func NewClientContextTracker(info ClientInfo, bounds MatchBounds) *ClientContextTracker {
+func NewClientContextTracker(info ClientInfo, bounds MatchBounds, logger log.ContextLogger) *ClientContextTracker {
 	return &ClientContextTracker{
 		info:         info,
 		inboundRule:  newBoundsRule(bounds.Inbound),
 		outboundRule: newBoundsRule(bounds.Outbound),
+		logger:       logger,
 	}
 }
 
 // NewClientContextReader creates a tracker for reading client info.
-func NewClientContextReader(bounds MatchBounds) *ClientContextTracker {
+func NewClientContextReader(bounds MatchBounds, logger log.ContextLogger) *ClientContextTracker {
 	return &ClientContextTracker{
 		inboundRule:  newBoundsRule(bounds.Inbound),
 		outboundRule: newBoundsRule(bounds.Outbound),
+		logger:       logger,
 		isReader:     true,
 	}
 }
@@ -80,9 +84,9 @@ func (t *ClientContextTracker) RoutedConnection(
 		return conn
 	}
 	if t.isReader {
-		return newReadConn(ctx, conn)
+		return newReadConn(ctx, conn, t.logger)
 	}
-	return newWriteConn(ctx, conn, &t.info)
+	return newWriteConn(ctx, conn, &t.info, t.logger)
 }
 
 // RoutedPacketConnection wraps the packet connection for reading or writing client info.
@@ -97,9 +101,9 @@ func (t *ClientContextTracker) RoutedPacketConnection(
 		return conn
 	}
 	if t.isReader {
-		return newReadPacketConn(ctx, conn)
+		return newReadPacketConn(ctx, conn, t.logger)
 	}
-	return newWritePacketConn(ctx, conn, metadata, &t.info)
+	return newWritePacketConn(ctx, conn, metadata, &t.info, t.logger)
 }
 
 func (t *ClientContextTracker) UpdateBounds(bounds MatchBounds) {
@@ -131,18 +135,21 @@ func (b *boundsRule) match(tag string) bool {
 
 type readConn struct {
 	net.Conn
-	ctx  context.Context
-	info *ClientInfo
+	ctx    context.Context
+	info   *ClientInfo
+	logger log.ContextLogger
 }
 
 // newReadConn creates a readConn and reads client info from it. If successful, the info is stored
 // in the context.
-func newReadConn(ctx context.Context, conn net.Conn) *readConn {
+func newReadConn(ctx context.Context, conn net.Conn, logger log.ContextLogger) net.Conn {
 	c := &readConn{Conn: conn, ctx: ctx}
 	info, err := c.readInfo()
-	if err == nil {
-		service.ContextWithPtr(ctx, info)
+	if err != nil {
+		logger.Error("reading client info ", err)
+		return conn
 	}
+	service.ContextWithPtr(ctx, info)
 	return c
 }
 
@@ -163,12 +170,13 @@ func (c *readConn) readInfo() (*ClientInfo, error) {
 
 type writeConn struct {
 	net.Conn
-	ctx  context.Context
-	info *ClientInfo
+	ctx    context.Context
+	info   *ClientInfo
+	logger log.ContextLogger
 }
 
-func newWriteConn(ctx context.Context, conn net.Conn, info *ClientInfo) *writeConn {
-	return &writeConn{Conn: conn, ctx: ctx, info: info}
+func newWriteConn(ctx context.Context, conn net.Conn, info *ClientInfo, logger log.ContextLogger) net.Conn {
+	return &writeConn{Conn: conn, ctx: ctx, info: info, logger: logger}
 }
 
 // ConnHandshakeSuccess sends client info upon successful handshake.
@@ -202,18 +210,19 @@ func (c *writeConn) sendInfo(conn net.Conn) error {
 
 type readPacketConn struct {
 	N.PacketConn
-	ctx  context.Context
-	info *ClientInfo
+	ctx    context.Context
+	info   *ClientInfo
+	logger log.ContextLogger
 }
 
 // newReadPacketConn creates a readPacketConn and reads client info from it. If successful, the
 // info is stored in the context.
-func newReadPacketConn(ctx context.Context, conn N.PacketConn) *readPacketConn {
-	c := &readPacketConn{PacketConn: conn, ctx: ctx}
+func newReadPacketConn(ctx context.Context, conn N.PacketConn, logger log.ContextLogger) N.PacketConn {
+	c := &readPacketConn{PacketConn: conn, ctx: ctx, logger: logger}
 	info, err := c.readInfo()
 	if err != nil {
-		fmt.Printf("error reading client info: %v\n", err)
-		return c
+		logger.Error("reading client info ", err)
+		return conn
 	}
 
 	service.ContextWithPtr(ctx, info)
@@ -249,14 +258,22 @@ type writePacketConn struct {
 	ctx      context.Context
 	metadata adapter.InboundContext
 	info     *ClientInfo
+	logger   log.ContextLogger
 }
 
-func newWritePacketConn(ctx context.Context, conn N.PacketConn, metadata adapter.InboundContext, info *ClientInfo) *writePacketConn {
+func newWritePacketConn(
+	ctx context.Context,
+	conn N.PacketConn,
+	metadata adapter.InboundContext,
+	info *ClientInfo,
+	logger log.ContextLogger,
+) N.PacketConn {
 	return &writePacketConn{
 		PacketConn: conn,
 		ctx:        ctx,
 		metadata:   metadata,
 		info:       info,
+		logger:     logger,
 	}
 }
 
@@ -285,7 +302,7 @@ func (c *writePacketConn) sendInfo(conn net.PacketConn) error {
 		return fmt.Errorf("reading response: %w", err)
 	}
 	if string(resp) != "OK" {
-		return fmt.Errorf("invalid response: %s", buf)
+		return fmt.Errorf("invalid response: %s", resp)
 	}
 	return nil
 }
