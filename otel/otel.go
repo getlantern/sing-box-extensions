@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
+
+const defaultTeleportHost = "telemetry.iantem.io:443"
 
 type Opts struct {
 	Endpoint         string
@@ -28,6 +31,13 @@ type Opts struct {
 	Addr             string
 	IsPro            bool
 	Legacy           bool
+}
+
+func GetTelemetryEndpoint() string {
+	if endpoint := os.Getenv("CUSTOM_OTLP_ENDPOINT"); endpoint != "" {
+		return endpoint
+	}
+	return defaultTeleportHost
 }
 
 func InitGlobalMeterProvider(opts *Opts) (func(), error) {

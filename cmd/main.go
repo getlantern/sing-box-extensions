@@ -60,8 +60,7 @@ func preRun(cmd *cobra.Command, args []string) {
 	}
 
 	otel.InitGlobalMeterProvider(&otel.Opts{
-		Endpoint:         "",
-		Headers:          map[string]string{},
+		Endpoint:         otel.GetTelemetryEndpoint(),
 		ProxyName:        proxyInfo.Name,
 		IsPro:            proxyInfo.Pro,
 		Track:            proxyInfo.Track,
