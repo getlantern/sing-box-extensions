@@ -32,7 +32,6 @@ func NewConn(conn net.Conn, metadata *adapter.InboundContext) net.Conn {
 func (c *Conn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	if n > 0 {
-		// metrics.bytesReceived.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
 		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("receive")})
 		metrics.ProxyIO.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
 	}
@@ -43,7 +42,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 func (c *Conn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	if n > 0 {
-		// metrics.bytesSent.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
 		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("transmit")})
 		metrics.ProxyIO.Add(context.Background(), int64(n), metric.WithAttributes(c.attributes...))
 	}

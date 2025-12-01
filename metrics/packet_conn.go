@@ -38,7 +38,6 @@ func (c *PacketConn) ReadPacket(buffer *buf.Buffer) (destination M.Socksaddr, er
 		return dest, err
 	}
 	if buffer.Len() > 0 {
-		// metrics.bytesReceived.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("receive")})
 		metrics.ProxyIO.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 	}
@@ -48,7 +47,6 @@ func (c *PacketConn) ReadPacket(buffer *buf.Buffer) (destination M.Socksaddr, er
 // WritePacket overrides network.PacketConn's WritePacket method to track sent bytes.
 func (c *PacketConn) WritePacket(buffer *buf.Buffer, destination M.Socksaddr) error {
 	if buffer.Len() > 0 {
-		// metrics.bytesSent.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("transmit")})
 		metrics.ProxyIO.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 	}
