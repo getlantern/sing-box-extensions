@@ -22,7 +22,8 @@ type PacketConn struct {
 // NewPacketConn creates a new PacketConn instance.
 func NewPacketConn(conn N.PacketConn, metadata *adapter.InboundContext) N.PacketConn {
 	attributes := metadataToAttributes(metadata)
-	metrics.conns.Add(context.Background(), 1, metric.WithAttributes(attributes...))
+	metrics.Connections.Add(context.Background(), 1, metric.WithAttributes(attributes...))
+
 	return &PacketConn{
 		PacketConn: conn,
 		attributes: attributes,
@@ -37,7 +38,9 @@ func (c *PacketConn) ReadPacket(buffer *buf.Buffer) (destination M.Socksaddr, er
 		return dest, err
 	}
 	if buffer.Len() > 0 {
-		metrics.bytesReceived.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
+		// metrics.bytesReceived.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
+		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("receive")})
+		metrics.ProxyIO.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 	}
 	return dest, nil
 }
@@ -45,7 +48,9 @@ func (c *PacketConn) ReadPacket(buffer *buf.Buffer) (destination M.Socksaddr, er
 // WritePacket overrides network.PacketConn's WritePacket method to track sent bytes.
 func (c *PacketConn) WritePacket(buffer *buf.Buffer, destination M.Socksaddr) error {
 	if buffer.Len() > 0 {
-		metrics.bytesSent.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
+		// metrics.bytesSent.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
+		c.attributes = append(c.attributes, attribute.KeyValue{Key: "direction", Value: attribute.StringValue("transmit")})
+		metrics.ProxyIO.Add(context.Background(), int64(buffer.Len()), metric.WithAttributes(c.attributes...))
 	}
 	return c.PacketConn.WritePacket(buffer, destination)
 }

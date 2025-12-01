@@ -37,7 +37,21 @@ require (
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 // indirect
+	github.com/getlantern/context v0.0.0-20220418194847-3d5e7a086201 // indirect
+	github.com/getlantern/golog v0.0.0-20230503153817-8e72de7e0a65 // indirect
+	github.com/getlantern/hex v0.0.0-20220104173244-ad7e4b9194dc // indirect
+	github.com/getlantern/keepcurrent v0.0.0-20221014183517-fcee77376b89 // indirect
+	github.com/go-stack/stack v1.8.1 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
+	github.com/klauspost/pgzip v1.2.5 // indirect
+	github.com/mholt/archiver/v3 v3.5.1 // indirect
+	github.com/nwaples/rardecode v1.1.2 // indirect
+	github.com/oschwald/geoip2-golang v1.9.0 // indirect
+	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
+	github.com/ulikunitz/xz v0.5.10 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251124214823-79d6a2a48846 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
@@ -79,6 +93,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gaukas/wazerofs v0.1.0 // indirect
 	github.com/getlantern/errors v1.0.4 // indirect
+	github.com/getlantern/geo v0.0.0-20241129152027-2fc88c10f91e
 	github.com/getlantern/hidden v0.0.0-20220104173330-f221c5a24770 // indirect
 	github.com/getlantern/ops v0.0.0-20231025133620-f368ab734534 // indirect
 	github.com/go-chi/chi/v5 v5.2.1 // indirect

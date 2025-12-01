@@ -6,6 +6,11 @@
 package metrics
 
 import (
+	"sync"
+	"time"
+
+	"github.com/getlantern/geo"
+	"github.com/getlantern/http-proxy-lantern/v2/instrument/distinct"
 	"github.com/sagernet/sing-box/adapter"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -13,12 +18,38 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
+var (
+	initOnce                                                 sync.Once
+	meter                                                    metric.Meter
+	Blacklist                                                metric.Int64Counter
+	ProxyIO                                                  metric.Int64Counter
+	QuicPackets                                              metric.Int64Counter
+	Mimicked                                                 metric.Int64Counter
+	MultipathFrames                                          metric.Int64Counter
+	MultipathIO                                              metric.Int64Counter
+	XBQ                                                      metric.Int64Counter
+	Throttling                                               metric.Int64Counter
+	SuspectedProbing                                         metric.Int64Counter
+	Connections                                              metric.Int64Counter
+	DistinctClients1m, DistinctClients10m, DistinctClients1h *distinct.SlidingWindowDistinctCount
+	distinctClients                                          metric.Int64ObservableGauge
+)
+
+var (
+	geolite2CityURL = "https://lanterngeo.lantern.io/GeoLite2-City.mmdb.tar.gz"
+	geoip2ISPURL    = "https://lanterngeo.lantern.io/GeoIP2-ISP.mmdb.tar.gz"
+)
+
 type metricsManager struct {
-	meter         metric.Meter
-	bytesSent     metric.Int64Counter
-	bytesReceived metric.Int64Counter
+	meter   metric.Meter
+	ProxyIO metric.Int64Counter
+	// bytesSent     metric.Int64Counter
+	// bytesReceived metric.Int64Counter
+	Connections   metric.Int64Counter
 	duration      metric.Int64Histogram
 	conns         metric.Int64UpDownCounter
+	countryLookup geo.CountryLookup
+	ispLookup     geo.ISPLookup
 }
 
 var metrics = newMetricsManager()
@@ -45,18 +76,26 @@ func newMetricsManager() *metricsManager {
 	if err != nil {
 		conns = &noop.Int64UpDownCounter{}
 	}
+
+	countryLookup := geo.FromWeb(geolite2CityURL, "GeoLite2-City.mmdb", 24*time.Hour, cityDBFile, geo.CountryCode)
+	ispLookup := geo.FromWeb(geoip2ISPURL, "GeoIP2-ISP.mmdb", 24*time.Hour, *geoip2ISPDBFile, geo.ISP)
+
 	return &metricsManager{
-		meter:         meter,
-		bytesSent:     bytesSent,
-		bytesReceived: bytesReceived,
+		meter: meter,
+		// bytesSent:     bytesSent,
+		// bytesReceived: bytesReceived,
 		duration:      duration,
 		conns:         conns,
+		ispLookup:     ispLookup,
+		countryLookup: countryLookup,
 	}
 }
 
 func metadataToAttributes(metadata *adapter.InboundContext) []attribute.KeyValue {
 	// Convert metadata to attributes
+	fromCountry := metrics.countryLookup.CountryCode(metadata.Source.IPAddr().IP)
 	return []attribute.KeyValue{
+		attribute.String("country", fromCountry),
 		attribute.String("proxy_ip", metadata.Destination.IPAddr().String()),
 		attribute.String("protocol", metadata.Protocol),
 		attribute.String("user", metadata.User),
