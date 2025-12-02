@@ -15,13 +15,12 @@ import (
 // PacketConn wraps a sing-box network.PacketConn and tracks data consumption for datacap reporting.
 type PacketConn struct {
 	N.PacketConn
-	ctx         context.Context
-	cancel      context.CancelFunc
-	client      *Client
-	deviceID    string
-	countryCode string
-	platform    string
-	logger      log.ContextLogger
+	ctx    context.Context
+	cancel context.CancelFunc
+	client *Client
+	logger log.ContextLogger
+
+	clientInfo *ClientInfo
 
 	// Atomic counters for thread-safe tracking
 	bytesSent     atomic.Int64
@@ -42,10 +41,8 @@ type PacketConn struct {
 type PacketConnConfig struct {
 	Conn             N.PacketConn
 	Client           *Client
-	DeviceID         string
-	CountryCode      string
-	Platform         string
 	Logger           log.ContextLogger
+	ClientInfo       *ClientInfo
 	ReportInterval   time.Duration
 	EnableThrottling bool
 	ThrottleSpeed    int64
@@ -65,10 +62,8 @@ func NewPacketConn(config PacketConnConfig) *PacketConn {
 		ctx:               ctx,
 		cancel:            cancel,
 		client:            config.Client,
-		deviceID:          config.DeviceID,
-		countryCode:       config.CountryCode,
-		platform:          config.Platform,
 		logger:            config.Logger,
+		clientInfo:        config.ClientInfo,
 		reportTicker:      time.NewTicker(config.ReportInterval),
 		throttler:         NewThrottler(config.ThrottleSpeed),
 		throttlingEnabled: config.EnableThrottling,
@@ -174,9 +169,9 @@ func (c *PacketConn) sendReport() {
 	}
 
 	report := &DataCapReport{
-		DeviceID:    c.deviceID,
-		CountryCode: c.countryCode,
-		Platform:    c.platform,
+		DeviceID:    c.clientInfo.DeviceID,
+		CountryCode: c.clientInfo.CountryCode,
+		Platform:    c.clientInfo.Platform,
 		BytesUsed:   totalConsumed,
 	}
 
@@ -193,7 +188,7 @@ func (c *PacketConn) sendReport() {
 		// Just log the error, don't fail the connection
 		c.logger.Debug("failed to report datacap consumption (non-fatal): ", err)
 	} else {
-		c.logger.Debug("reported datacap consumption: ", totalConsumed, " bytes (sent: ", sent, ", received: ", received, ") for device ", c.deviceID)
+		c.logger.Debug("reported datacap consumption: ", totalConsumed, " bytes (sent: ", sent, ", received: ", received, ") for device ", c.clientInfo.DeviceID)
 		// Update internal state with response from sidecar
 		if status != nil {
 			c.updateThrottleState(status)
@@ -244,7 +239,7 @@ func (c *PacketConn) GetStatus() (*DataCapStatus, error) {
 	statusCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return c.client.GetDataCapStatus(statusCtx, c.deviceID)
+	return c.client.GetDataCapStatus(statusCtx, c.clientInfo.DeviceID)
 }
 
 // GetBytesConsumed returns the total bytes consumed by this packet connection.

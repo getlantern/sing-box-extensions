@@ -1,7 +1,6 @@
 package datacap
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -11,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/sagernet/sing-box/log"
 )
 
 // mockConn implements net.Conn for testing
@@ -76,23 +77,7 @@ func (m *mockConn) GetWrittenData() []byte {
 	return m.writeData
 }
 
-// mockLogger implements a simple logger for testing
-type mockLogger struct{}
-
-func (m *mockLogger) Trace(args ...any)                             {}
-func (m *mockLogger) Debug(args ...any)                             {}
-func (m *mockLogger) Info(args ...any)                              {}
-func (m *mockLogger) Warn(args ...any)                              {}
-func (m *mockLogger) Error(args ...any)                             {}
-func (m *mockLogger) Fatal(args ...any)                             {}
-func (m *mockLogger) Panic(args ...any)                             {}
-func (m *mockLogger) TraceContext(ctx context.Context, args ...any) {}
-func (m *mockLogger) DebugContext(ctx context.Context, args ...any) {}
-func (m *mockLogger) InfoContext(ctx context.Context, args ...any)  {}
-func (m *mockLogger) WarnContext(ctx context.Context, args ...any)  {}
-func (m *mockLogger) ErrorContext(ctx context.Context, args ...any) {}
-func (m *mockLogger) FatalContext(ctx context.Context, args ...any) {}
-func (m *mockLogger) PanicContext(ctx context.Context, args ...any) {}
+var noopLogger = log.NewNOPFactory().Logger()
 
 // TestDataCapEndToEndNoThrottling tests the complete datacap workflow without throttling
 func TestDataCapEndToEndNoThrottling(t *testing.T) {
@@ -135,12 +120,14 @@ func TestDataCapEndToEndNoThrottling(t *testing.T) {
 
 	// Create datacap-wrapped connection
 	config := ConnConfig{
-		Conn:             mockConn,
-		Client:           client,
-		DeviceID:         "test-device",
-		CountryCode:      "US",
-		Platform:         "android",
-		Logger:           &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID:    "test-device",
+			CountryCode: "US",
+			Platform:    "android",
+		},
+		Logger:           noopLogger,
 		ReportInterval:   100 * time.Millisecond, // Short interval for testing
 		EnableThrottling: false,
 	}
@@ -231,12 +218,14 @@ func TestDataCapEndToEndWithThrottling(t *testing.T) {
 
 	// Create datacap-wrapped connection with throttling
 	config := ConnConfig{
-		Conn:             mockConn,
-		Client:           client,
-		DeviceID:         "test-device",
-		CountryCode:      "US",
-		Platform:         "android",
-		Logger:           &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID:    "test-device",
+			CountryCode: "US",
+			Platform:    "android",
+		},
+		Logger:           noopLogger,
 		ReportInterval:   100 * time.Millisecond,
 		EnableThrottling: true,
 		ThrottleSpeed:    1024 * 10, // 10 KB/s (slow for testing)
@@ -321,10 +310,12 @@ func TestDataCapThrottleSpeedAdjustment(t *testing.T) {
 
 			// Create datacap-wrapped connection
 			config := ConnConfig{
-				Conn:             mockConn,
-				Client:           nil, // No client needed for this test
-				DeviceID:         "test-device",
-				Logger:           &mockLogger{},
+				Conn:   mockConn,
+				Client: nil, // No client needed for this test
+				ClientInfo: &ClientInfo{
+					DeviceID: "test-device",
+				},
+				Logger:           noopLogger,
 				EnableThrottling: true,
 			}
 			conn := NewConn(config)
@@ -379,12 +370,14 @@ func TestDataCapPeriodicReporting(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		CountryCode:    "US",
-		Platform:       "android",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID:    "test-device",
+			CountryCode: "US",
+			Platform:    "android",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond, // Very short for testing
 	}
 	conn := NewConn(config)
@@ -451,12 +444,14 @@ func TestDataCapFinalReportOnClose(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device-final",
-		CountryCode:    "US",
-		Platform:       "ios",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID:    "test-device-final",
+			CountryCode: "US",
+			Platform:    "ios",
+		},
+		Logger:         noopLogger,
 		ReportInterval: time.Hour, // Long interval so only final report happens
 	}
 	conn := NewConn(config)
@@ -506,10 +501,12 @@ func TestDataCapSidecarUnreachable(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -556,10 +553,12 @@ func TestDataCapSidecarReturnsError(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -585,10 +584,12 @@ func TestDataCapNilClient(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         nil, // Datacap disabled
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: nil, // Datacap disabled
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -631,10 +632,12 @@ func TestDataCapZeroBytes(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -666,10 +669,12 @@ func TestDataCapConcurrentReadWrite(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 200 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -740,10 +745,12 @@ func TestDataCapMultipleClose(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: time.Hour,
 	}
 	conn := NewConn(config)
@@ -777,10 +784,12 @@ func TestDataCapThrottleDisableAfterEnable(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:             mockConn,
-		Client:           nil,
-		DeviceID:         "test-device",
-		Logger:           &mockLogger{},
+		Conn:   mockConn,
+		Client: nil,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:           noopLogger,
 		EnableThrottling: true,
 	}
 	conn := NewConn(config)
@@ -835,10 +844,12 @@ func TestDataCapEmptyDeviceID(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "", // Empty device ID
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "", // Empty device ID
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -878,10 +889,12 @@ func TestDataCapLargeDataTransfer(t *testing.T) {
 	mockConn := newMockConn(largeData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 100 * time.Millisecond,
 	}
 	conn := NewConn(config)
@@ -931,10 +944,12 @@ func TestDataCapRapidOpenClose(t *testing.T) {
 		mockConn := newMockConn(testData)
 
 		config := ConnConfig{
-			Conn:           mockConn,
-			Client:         client,
-			DeviceID:       "test-device",
-			Logger:         &mockLogger{},
+			Conn:   mockConn,
+			Client: client,
+			ClientInfo: &ClientInfo{
+				DeviceID: "test-device",
+			},
+			Logger:         noopLogger,
 			ReportInterval: time.Hour,
 		}
 		conn := NewConn(config)
@@ -982,10 +997,12 @@ func TestDataCapStatusCheckAfterReport(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:             mockConn,
-		Client:           client,
-		DeviceID:         "test-device",
-		Logger:           &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:           noopLogger,
 		ReportInterval:   50 * time.Millisecond,
 		EnableThrottling: true,
 	}
@@ -1036,11 +1053,13 @@ func TestDataCapDifferentPlatforms(t *testing.T) {
 			mockConn := newMockConn(testData)
 
 			config := ConnConfig{
-				Conn:           mockConn,
-				Client:         client,
-				DeviceID:       "test-device",
-				Platform:       platform,
-				Logger:         &mockLogger{},
+				Conn:   mockConn,
+				Client: client,
+				ClientInfo: &ClientInfo{
+					DeviceID: "test-device",
+					Platform: platform,
+				},
+				Logger:         noopLogger,
 				ReportInterval: 50 * time.Millisecond,
 			}
 			conn := NewConn(config)
@@ -1089,11 +1108,13 @@ func TestDataCapCountryCodeVariations(t *testing.T) {
 			mockConn := newMockConn(testData)
 
 			config := ConnConfig{
-				Conn:           mockConn,
-				Client:         client,
-				DeviceID:       "test-device",
-				CountryCode:    code,
-				Logger:         &mockLogger{},
+				Conn:   mockConn,
+				Client: client,
+				ClientInfo: &ClientInfo{
+					DeviceID:    "test-device",
+					CountryCode: code,
+				},
+				Logger:         noopLogger,
 				ReportInterval: 50 * time.Millisecond,
 			}
 			conn := NewConn(config)
@@ -1127,10 +1148,12 @@ func TestDataCapReadWriteErrors(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: time.Hour,
 	}
 	conn := NewConn(config)
@@ -1176,10 +1199,12 @@ func TestDataCapContextCancellation(t *testing.T) {
 	mockConn := newMockConn(testData)
 
 	config := ConnConfig{
-		Conn:           mockConn,
-		Client:         client,
-		DeviceID:       "test-device",
-		Logger:         &mockLogger{},
+		Conn:   mockConn,
+		Client: client,
+		ClientInfo: &ClientInfo{
+			DeviceID: "test-device",
+		},
+		Logger:         noopLogger,
 		ReportInterval: 50 * time.Millisecond,
 	}
 	conn := NewConn(config)
