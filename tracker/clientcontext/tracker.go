@@ -133,6 +133,31 @@ func (b *boundsRule) match(tag string) bool {
 	return (b.matchAny && tag != "") || b.tagMap[tag]
 }
 
+// since sing-box only wraps inbound connections with trackers, conn on the client is from the user
+// (e.g. tun connection), while conn on the server is from an outbound on the client. The connection
+// to the server isn't established until after conn is wrapped on the client side and we don't have
+// access to it until after the handshake.
+//
+//                     Client                         Server
+//                  -------------                 -------------
+//    conn    --->  tracker(conn)                       |
+// (i.e. tun)            |                              |
+//                   dial server   ----------->       conn
+//                       |                              |
+//                       +<--------  handshake  ------->+
+//                       |                              |
+//                handshakeSuccess   <----------   tracker(conn)
+//                       |                              |
+//                send client info   --------->  read client info
+//                       |                             |
+//                  pipe traffic                 dial upstream
+//                                                    ...
+//                                                pipe traffic
+//
+// This is why writeConn (client) doesn't send the client info until ConnHandshakeSuccess while
+// readConn (server) reads it immediately upon creation.
+
+// readConn reads client info from the connection on creation.
 type readConn struct {
 	net.Conn
 	ctx    context.Context
@@ -168,6 +193,7 @@ func (c *readConn) readInfo() (*ClientInfo, error) {
 	return &info, nil
 }
 
+// writeConn sends client info after handshake.
 type writeConn struct {
 	net.Conn
 	ctx    context.Context
@@ -179,7 +205,7 @@ func newWriteConn(ctx context.Context, conn net.Conn, info *ClientInfo, logger l
 	return &writeConn{Conn: conn, ctx: ctx, info: info, logger: logger}
 }
 
-// ConnHandshakeSuccess sends client info upon successful handshake.
+// ConnHandshakeSuccess sends client info upon successful handshake with the server.
 func (c *writeConn) ConnHandshakeSuccess(conn net.Conn) error {
 	if err := c.sendInfo(conn); err != nil {
 		return fmt.Errorf("sending client info: %w", err)
