@@ -4,11 +4,11 @@ go 1.23.6
 
 toolchain go1.24.1
 
-replace github.com/sagernet/sing => github.com/getlantern/sing v0.6.13-0.20251205174047-e00a702507ae
+replace github.com/sagernet/sing => github.com/getlantern/sing v0.7.14-0.20251205174047-e00a702507ae
 
-replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.11.16-lantern.0.20251205011046-be268b083378
+replace github.com/sagernet/sing-box => github.com/getlantern/sing-box-minimal v1.12.13-0.20251205011046-be268b083378
 
-replace github.com/sagernet/wireguard-go => github.com/getlantern/wireguard-go v0.0.1-beta.5-amnezia.0.20251205211434-fa87bd554827
+replace github.com/sagernet/wireguard-go => github.com/getlantern/wireguard-go v0.0.1-beta.7.0.20251205211434-fa87bd554827
 
 replace github.com/tetratelabs/wazero => github.com/refraction-networking/wazero v1.7.1-w
 
@@ -27,14 +27,12 @@ require (
 	github.com/refraction-networking/water v0.7.1-alpha
 	github.com/sagernet/sing v0.7.13
 	github.com/sagernet/sing-box v1.11.5
-	github.com/sagernet/wireguard-go v0.0.1-beta.7
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.7.3
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/metric v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
-	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -172,6 +170,7 @@ require (
 	github.com/sagernet/sing-vmess v0.2.7 // indirect
 	github.com/sagernet/smux v1.5.34-mod.2 // indirect
 	github.com/sagernet/tailscale v1.80.3-sing-box-1.12-mod.2 // indirect
+	github.com/sagernet/wireguard-go v0.0.1-beta.7 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
@@ -197,6 +196,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
+	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/mod v0.27.0 // indirect
